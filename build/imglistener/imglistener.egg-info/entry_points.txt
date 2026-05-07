@@ -1,0 +1,2 @@
+[console_scripts]
+imglistener = imglistener.imglistener:main

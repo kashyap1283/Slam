@@ -1,0 +1,24 @@
+[1.484s] Invoking command in '/home/kar1858/Slam/imglistener': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/kar1858/Slam/build/imglistener/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/imglistener build --build-base /home/kar1858/Slam/build/imglistener/build install --record /home/kar1858/Slam/build/imglistener/install.log --single-version-externally-managed install_data
+[1.977s] running egg_info
+[2.016s] writing ../build/imglistener/imglistener.egg-info/PKG-INFO
+[2.016s] writing dependency_links to ../build/imglistener/imglistener.egg-info/dependency_links.txt
+[2.016s] writing entry points to ../build/imglistener/imglistener.egg-info/entry_points.txt
+[2.017s] writing requirements to ../build/imglistener/imglistener.egg-info/requires.txt
+[2.017s] writing top-level names to ../build/imglistener/imglistener.egg-info/top_level.txt
+[2.096s] reading manifest file '../build/imglistener/imglistener.egg-info/SOURCES.txt'
+[2.097s] writing manifest file '../build/imglistener/imglistener.egg-info/SOURCES.txt'
+[2.098s] running build
+[2.098s] running build_py
+[2.098s] copying imglistener/imglistener.py -> /home/kar1858/Slam/build/imglistener/build/lib/imglistener
+[2.098s] running install
+[2.109s] running install_lib
+[2.149s] copying /home/kar1858/Slam/build/imglistener/build/lib/imglistener/imglistener.py -> /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener
+[2.150s] byte-compiling /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py to imglistener.cpython-312.pyc
+[2.158s] running install_data
+[2.158s] running install_egg_info
+[2.198s] removing '/home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener-0.0.0-py3.12.egg-info' (and everything under it)
+[2.199s] Copying ../build/imglistener/imglistener.egg-info to /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener-0.0.0-py3.12.egg-info
+[2.200s] running install_scripts
+[2.456s] Installing imglistener script to /home/kar1858/Slam/install/imglistener/lib/imglistener
+[2.456s] writing list of installed files to '/home/kar1858/Slam/build/imglistener/install.log'
+[2.508s] Invoked command in '/home/kar1858/Slam/imglistener' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/kar1858/Slam/build/imglistener/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/imglistener build --build-base /home/kar1858/Slam/build/imglistener/build install --record /home/kar1858/Slam/build/imglistener/install.log --single-version-externally-managed install_data
