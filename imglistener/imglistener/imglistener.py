@@ -317,7 +317,7 @@ def get_visible_landmarks(map_points_3d, map_times_expected, global_x, global_y,
 
 
 def feature_detector(frame, depth_image):
-    orb = cv2.ORB_create(nfeatures=2000)                        
+    orb = cv2.ORB_create(nfeatures=1000)                        
     kp, des = orb.detectAndCompute(frame, None) 
     
     if not kp:
