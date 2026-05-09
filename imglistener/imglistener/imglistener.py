@@ -187,11 +187,12 @@ class ImageSubscriber(Node):
 
             xb = z
             yb = -x
+            zb = y  # Y from camera frame becomes Z in robot frame
 
             gx = xb * cos_yaw - yb * sin_yaw + self.global_x
             gy = xb * sin_yaw + yb * cos_yaw + self.global_y
 
-            self.map_points_3d.append([gx, gy, z])
+            self.map_points_3d.append([gx, gy, zb])
             self.map_descriptors.append(des[i])
             self.map_times_seen.append(1)
             self.map_times_expected.append(1)
