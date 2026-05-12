@@ -50,7 +50,7 @@ class ImageSubscriber(Node):
         self.global_y = 0.0
         self.global_yaw = 0.0
 
-        # --- SLAM Map Data Structures (Maintained from your original code) ---
+        # --- SLAM Map Data Structures ---
         self.map_points_3d = []        
         self.map_descriptors = []      
         self.map_times_seen = []       
@@ -77,13 +77,12 @@ class ImageSubscriber(Node):
             self.prev_kp = kp
             self.prev_frame = frame
             
-            # Dump all features into the initial map
             self.add_new_landmarks(points, des, set()) 
             self.get_logger().info(f"Initialized map with {len(self.map_points_3d)} landmarks.")
             return
 
         try:
-            # 2. Frustum Culling - Find what we *expect* to see
+            # 2. Frustum Culling
             vis_indices = get_visible_landmarks(
                 self.map_points_3d, self.map_times_expected, 
                 self.global_x, self.global_y, self.global_yaw
@@ -92,64 +91,51 @@ class ImageSubscriber(Node):
             P, Q = [], []
             matched_current_indices = set()
 
-            # 3. Map-to-Frame Matching using crossCheck=True
+            # 3. Map-to-Frame Matching
             if len(vis_indices) > 0 and des is not None:
                 vis_des_array = np.array([self.map_descriptors[i] for i in vis_indices])
                 
-                # Using standard matching with crossCheck enabled per reference code
                 bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
                 map_matches = bf.match(vis_des_array, des)
                 
-                cos_yaw = math.cos(-self.global_yaw)
-                sin_yaw = math.sin(-self.global_yaw)
-
+                # --- CHANGE 1: Simplify matching loop to use Absolute coordinates ---
                 for m in map_matches:
                     if m.distance < 60:
                         map_idx = vis_indices[m.queryIdx]
                         self.map_times_seen[map_idx] += 1 
                         
-                        # Get global point and inverse-transform it to expected local camera frame
-                        pt = self.map_points_3d[map_idx]
-                        dx = pt[0] - self.global_x
-                        dy = pt[1] - self.global_y
-                        dz = pt[2]
+                        # Get absolute Global point [X, Y, Z]
+                        pt_global = self.map_points_3d[map_idx]
+                        
+                        # Format as [X, 0, Y] so Kabsch's [:, [0,2]] slice grabs global X and Y
+                        P.append([pt_global[0], 0.0, pt_global[1]])
 
-                        base_x = dx * cos_yaw - dy * sin_yaw
-                        base_y = dx * sin_yaw + dy * cos_yaw
-                        base_z = dz
-
-                        cam_x = -base_y
-                        cam_y = -base_z
-                        cam_z = base_x
-
-                        P.append([cam_x, cam_y, cam_z])
-                        Q.append(points[m.trainIdx])
+                        # Get local camera point and convert to Robot Base frame
+                        cam_x, cam_y, cam_z = points[m.trainIdx]
+                        local_x = cam_z   # Camera Z is Robot Forward (X)
+                        local_y = -cam_x  # Camera -X is Robot Left (Y)
+                        
+                        # Format as [X, 0, Y] so Kabsch's [:, [0,2]] slice grabs local X and Y
+                        Q.append([local_x, 0.0, local_y])
+                        
                         matched_current_indices.add(m.trainIdx)
 
             P = np.array(P)
             Q = np.array(Q)
 
-            # 4. RANSAC and Pose Update
+            # 4. RANSAC and Absolute Pose Update
             R_2d, t_2d, P_in, Q_in, inlier_count, outlier_count = ransac_kabsch(P, Q)
 
             if R_2d is None:
                 self.get_logger().warn("Lost tracking: Not enough valid inliers.")
                 return
 
-            theta = math.atan2(R_2d[1,0], R_2d[0, 0])
-            prev_yaw = self.global_yaw 
-            self.global_yaw += theta
-            self.global_yaw = math.atan2(math.sin(self.global_yaw), math.cos(self.global_yaw))
-
-            dx_robot = t_2d[1]    
-            dy_robot = -t_2d[0]   
-
-            # x_{k+1} = x_k + Δx cosθ - Δy sinθ
-            # y_{k+1} = y_k + Δx sinθ + Δy cosθ
-            # (robot frame → global frame transform)
-
-            self.global_x += dx_robot * math.cos(prev_yaw) - dy_robot * math.sin(prev_yaw)
-            self.global_y += dx_robot * math.sin(prev_yaw) + dy_robot * math.cos(prev_yaw)
+            # --- CHANGE 2: Replace "+=" with Absolute Assignment ---
+            # t_2d and R_2d now represent your EXACT global position and rotation.
+            self.global_yaw = math.atan2(R_2d[1, 0], R_2d[0, 0])
+            self.global_x = t_2d[0]
+            self.global_y = t_2d[1]
+            # -------------------------------------------------------
 
             # Pointcloud generation
             if len(self.map_points_3d) > 0:
@@ -169,7 +155,6 @@ class ImageSubscriber(Node):
             self.prev_frame = frame
 
     def add_new_landmarks(self, current_points, current_descriptors, matched_indices):
-        """Transforms unmatched camera points into global coordinates and adds them to the map."""
         cos_yaw = math.cos(self.global_yaw)
         sin_yaw = math.sin(self.global_yaw)
         new_count = 0
@@ -194,7 +179,6 @@ class ImageSubscriber(Node):
         return new_count, self.map_points_3d
 
     def prune_landmarks(self):
-        """Removes landmarks that are expected to be seen but are rarely matched."""
         if not self.map_points_3d: return 0
 
         good_points, good_descriptors, good_seen, good_expected = [], [], [], []
@@ -205,7 +189,6 @@ class ImageSubscriber(Node):
             expected = self.map_times_expected[i]
             ratio = seen / float(expected) if expected > 0 else 0.0
             
-            # Prune if expected > 3 frames and match ratio < 25%
             if expected > 3 and ratio < 0.25:
                 removed_count += 1
                 continue 
@@ -225,7 +208,6 @@ class ImageSubscriber(Node):
 #--------------------------------------------------------------------------------------------------
 
 def get_visible_landmarks(map_points_3d, map_times_expected, global_x, global_y, global_yaw):
-    """Checks which global landmarks fall within the camera's viewing cone."""
     vis_indices = []
     cos_yaw = math.cos(-global_yaw)
     sin_yaw = math.sin(-global_yaw)
@@ -384,7 +366,6 @@ def ransac_kabsch(P, Q, iterations=200, threshold=0.05):
 
         R_hyp, t_hyp = kabsch_2d(P_s, Q_s)
         
-        
         errors = calculate_errors(P, Q, R_hyp, t_hyp)
         inliers = errors < threshold
         inlier_count = np.sum(inliers)
@@ -403,7 +384,6 @@ def ransac_kabsch(P, Q, iterations=200, threshold=0.05):
     inlier_count = np.sum(best_inliers)
     outlier_count = n - inlier_count
 
-    # Removed the 'inlier_count <= outlier_count' dropout check 
     return R, t, P_in, Q_in, inlier_count, outlier_count
 
 def main():     
