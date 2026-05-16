@@ -142,6 +142,10 @@ class ImageSubscriber(Node):
     # EKF Functions
     # ---------------------------------------------------------
     def ekf_state_func(self, x):
+        """
+        Process Model: Drives the state forward using Wheel/IMU deltas.
+        This completely eliminates jitter because the EKF expects this smooth motion.
+        """
         dx, dy, dtheta = self.current_u
         theta = x[2]
         
@@ -155,6 +159,7 @@ class ImageSubscriber(Node):
         return np.array([new_x, new_y, new_theta])
     
     def ekf_meas_func(self, x):
+        """ Measurement model: We observe [X, Y, Yaw] directly. """
         return x.copy()
 
     def depth_subscription(self, msg):
@@ -254,10 +259,8 @@ class ImageSubscriber(Node):
                             if depth_ratio > depth_tolerance:
                                 continue
 
-                        # FIX: Build P and Q in the native CAMERA frame to preserve geometry
                         P.append([cam_x, cam_y, cam_z])
                         Q.append(points[m.trainIdx])
-                        
                         matched_current_indices.add(m.trainIdx)
 
             P = np.array(P)
@@ -275,6 +278,7 @@ class ImageSubscriber(Node):
             cos_t = math.cos(theta_current)
             sin_t = math.sin(theta_current)
 
+            # Calculate proper Jacobian (JF) based on the wheel/IMU movement
             JF = np.array([
                 [1.0, 0.0, -u_dx * sin_t - u_dy * cos_t],
                 [0.0, 1.0,  u_dx * cos_t - u_dy * sin_t],
@@ -282,44 +286,36 @@ class ImageSubscriber(Node):
             ])
             self.ekf.setJF(JF)
             self.ekf.setJH(np.eye(3))
+
+            # Q (Process Noise): Trust the wheels heavily for smoothness
             self.ekf.setQ(np.diag([0.01, 0.01, 0.005]))
 
             # ── 3. APPLY VO AS A MEASUREMENT ───────────────────────────────────
             if R_2d is None or inlier_count < MIN_INLIERS:
                 self.get_logger().warn(f"VO weak. Coasting on Wheel/IMU.")
                 
+                # Treat the smooth wheel prediction as our measurement to prevent jumping
                 z_pose = self.ekf_state_func(self.ekf.x)
+                
+                # R (Measurement Noise): Extremely high. We ignore VO entirely.
                 self.ekf.setR(np.diag([1e6, 1e6, 1e6]))
                 
                 self.theta_last = u_dtheta
                 self.add_new_landmarks(points, des, matched_current_indices)
             else:
-                # ==========================================================
-                # THE LEVER ARM FIX
-                # We build the 4x4 matrix of the Camera's motion, then 
-                # multiply it by the TF tree to extract the Base's true motion.
-                # ==========================================================
-                T_cam = np.eye(4)
-                T_cam[0, 0] = R_2d[0, 0]
-                T_cam[0, 2] = R_2d[0, 1]
-                T_cam[2, 0] = R_2d[1, 0]
-                T_cam[2, 2] = R_2d[1, 1]
-                T_cam[0, 3] = t_2d[0] # X trans
-                T_cam[2, 3] = t_2d[1] # Z trans
-
-                # T_base = (Base->Cam) * T_cam * (Cam->Base)
-                T_base = self.kinect_to_base_matrix @ T_cam @ self.base_to_kinect_matrix
+                vo_dtheta = math.atan2(R_2d[1, 0], R_2d[0, 0])
+                vo_dx     = t_2d[1]
+                vo_dy     = -t_2d[0]
                 
-                vo_dx = T_base[0, 3]
-                vo_dy = T_base[1, 3]
-                vo_dtheta = math.atan2(T_base[1, 0], T_base[0, 0])
-                # ==========================================================
-                
+                # Convert the local VO delta into a Global Pose Measurement
                 z_yaw = theta_current + vo_dtheta
                 z_x   = self.ekf.x[0] + vo_dx * cos_t - vo_dy * sin_t
                 z_y   = self.ekf.x[1] + vo_dx * sin_t + vo_dy * cos_t
                 z_pose = np.array([z_x, z_y, z_yaw])
                 
+                # R (Measurement Noise): VO is noisy. Give it high variance.
+                # This acts as a low-pass filter, pulling the pose gently towards the visual reality
+                # without snapping it suddenly (which causes the jitter).
                 self.ekf.setR(np.diag([0.2, 0.2, 0.05])) 
                 
                 self.theta_last = vo_dtheta
@@ -331,9 +327,11 @@ class ImageSubscriber(Node):
             self.global_y   = self.ekf.x[1]
             self.global_yaw = self.ekf.x[2]
             
+            # Keep Yaw contained
             self.global_yaw = math.atan2(math.sin(self.global_yaw), math.cos(self.global_yaw))
 
             # ── 5. PUBLISH & CLEANUP ───────────────────────────────────────────
+            
             if len(self.map_points_3d) > 0:
                 pointcloud(np.array(self.map_points_3d),
                            self.current_pc_pub, self.current_time, "orb_odom")
@@ -578,7 +576,6 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw,inlier_c
 
 
 def kabsch_2d(P, Q):
-    # Restored to original indices to keep the Camera geometry intact.
     P_2d, Q_2d = P[:, [0, 2]], Q[:, [0, 2]]
     P_mean, Q_mean = np.mean(P_2d, axis=0), np.mean(Q_2d, axis=0)
     P_c,    Q_c    = P_2d - P_mean,         Q_2d - Q_mean
