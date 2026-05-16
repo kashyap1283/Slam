@@ -1,1 +1,0 @@
-timestamp,slam_pose_x,slam_pose_y,wheel_pose_x,wheel_pose_y,slam_rotation_theta,imu_rotation_theta,driven_dist_m,xy_euclidean_error_m,x_error_m,y_error_m,yaw_error_deg
