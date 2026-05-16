@@ -25,6 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'imglistener = imglistener.imglistener:main',
+            # ADD THIS LINE FOR YOUR NEW CSV SCRIPT:
+            'data_extractor = imglistener.DataExtraction:main',
         ],
     },
 )
