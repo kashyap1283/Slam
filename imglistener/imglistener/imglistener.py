@@ -197,7 +197,7 @@ class ImageSubscriber(Node):
         self.current_u = np.array([u_dx, u_dy, u_dtheta])
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-        kp, des, points = feature_detector(frame, self.depth_image)  # imshow is inside here
+        kp, des, points = feature_detector(frame, self.depth_image)  
 
         if not kp or len(kp) < MIN_KEYPOINTS:
                 return
@@ -207,8 +207,8 @@ class ImageSubscriber(Node):
         sin_t = math.sin(theta)
 
         JF = np.array([
-            [1.0, 0.0, -u_dx * sin_t - u_dy * cos_t],
-            [0.0, 1.0,  u_dx * cos_t - u_dy * sin_t],
+            [cos_t, -sin_t, -u_dx * sin_t - u_dy * cos_t],
+            [sin_t, cos_t,  u_dx * cos_t - u_dy * sin_t],
             [0.0, 0.0,  1.0]
         ])
         self.ekf.setJF(JF)
