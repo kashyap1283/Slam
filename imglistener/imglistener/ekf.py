@@ -1,67 +1,74 @@
-from random import *
-from math import *
-import matplotlib.pyplot as plt
+#!/usr/bin/env python3
 import numpy as np
-import scipy.stats as stats
+
 
 class ExtKalman:
-	def __init__(self, x, state_func, meas_func, JF, JH, R, Q):
-		self.x = x
-		self.state_func = state_func
-		self.meas_func = meas_func
-		self.JF = JF
-		self.JH = JH
-		self.R = R
-		self.Q = Q
-		self.P = Q # initialize
+    def __init__(self, x, state_func, meas_func, JF, JH, R, Q):
+        self.x = x.astype(float)
+        self.state_func = state_func
+        self.meas_func = meas_func
+        self.JF = JF.astype(float)
+        self.JH = JH.astype(float)
+        self.R = R.astype(float)
+        self.Q = Q.astype(float)
 
-	# set Jacobi matrix of the state transition
-	def setJF(self, JF):
-		self.JF = JF
-		
-	# set Jacobi Matrix of the measurement function
-	def setJH(self, JH):
-		self.JH = JH
+        # State covariance must not be initialized to process noise.
+        self.P = np.eye(len(x), dtype=float) * 1.0
 
-	# set measurement noise -- eg. for EKF
-	def setR(self, R):
-		self.R = R
+    def setJF(self, JF):
+        self.JF = JF.astype(float)
 
-	# set model noise -- eg. for EKF
-	def setQ(self, Q):
-		self.Q = Q
+    def setJH(self, JH):
+        self.JH = JH.astype(float)
 
-	def predictState(self):
-		pstate = self.state_func(self.x)
-		pP = np.matmul(self.JF, np.matmul(self.P, self.JF.transpose()))+self.Q
-		return pstate, pP
+    def setR(self, R):
+        self.R = R.astype(float)
 
-	# return measurement prediction (\hat z_{t|t-1})
-	def predictMeasurement(self):
-		pmeas = self.meas_func(self.x)
-		return pmeas
-	
-	# return matrix K
-	def computeKalmanGain(self):
-		x_tt1, P_tt1 = self.predictState()
-		
-		PHT = np.matmul(P_tt1, self.JH.transpose())         # PH^\top
-		HPHT = np.matmul(self.JH, PHT)                      # HPH^\top
-		HPHTpRi = np.linalg.inv(HPHT + self.R)             # (HPH^\top + R)^{-1}
-		K = np.matmul(PHT, HPHTpRi)
-		return K
+    def setQ(self, Q):
+        self.Q = Q.astype(float)
 
-	# Update self.x and self.P, return tuple (x_{t|t}, P_{t_t})
-	def update(self, z):
-		print("State:", self.x)
-		x_tt1, P_tt1 = self.predictState()
-		print("Predicted state:", x_tt1)
-		z_tt1 = self.predictMeasurement()
-		print("Predicted measurement:", z_tt1)
-		print("Actual measurement:", z)
-		K = self.computeKalmanGain()
-		self.x = x_tt1 + np.matmul(K, (z-z_tt1))
-		self.x = self.x.flatten()
-		self.P = P_tt1 - np.matmul(K, np.matmul(self.JH, P_tt1))
-		return self.x, self.P
-	
+    def predictState(self):
+        """
+        Propagate state and covariance forward.
+        Does NOT mutate self.x or self.P.
+        """
+        x_pred = self.state_func(self.x)
+        P_pred = self.JF @ self.P @ self.JF.T + self.Q
+        return x_pred, P_pred
+
+    def predictMeasurement(self, x_pred):
+        return self.meas_func(x_pred)
+
+    def commitPrediction(self):
+        """
+        Predict and store the result in self.x, self.P.
+        Call this once per cycle before update().
+        """
+        x_pred, P_pred = self.predictState()
+        self.x = x_pred.flatten()
+        self.P = P_pred
+        return self.x, self.P
+
+    def update(self, z):
+        """
+        Update step only.
+        Assumes self.x and self.P already contain the predicted prior.
+        """
+        x_pred = self.x.copy()
+        P_pred = self.P.copy()
+
+        z_pred = self.predictMeasurement(x_pred)
+
+        PHT = P_pred @ self.JH.T
+        S = self.JH @ PHT + self.R
+        K = PHT @ np.linalg.inv(S)
+
+        innov = z - z_pred
+        self.x = (x_pred + K @ innov).flatten()
+
+        # Joseph form for numerical stability
+        n = len(self.x)
+        I_KH = np.eye(n) - K @ self.JH
+        self.P = I_KH @ P_pred @ I_KH.T + K @ self.R @ K.T
+
+        return self.x, self.P
