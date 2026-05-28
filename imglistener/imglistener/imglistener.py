@@ -23,7 +23,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from imglistener.ekf import ExtKalman
 
 MIN_KEYPOINTS = 5
-MIN_INLIERS = 12
+MIN_INLIERS = 8
 
 cx = 318.525
 cy = 241.181
@@ -57,8 +57,6 @@ class ImageSubscriber(Node):
         self.current_pc_pub = self.create_publisher(PointCloud2, '/global_cloud', 10)
         self.odom_pub = self.create_publisher(Odometry, '/serf01/odometry/project_slam', 10)
         self.path_pub = self.create_publisher(Path, '/orb_path', 10)
-        
-        # New publisher for the visualization of uncertainty
         self.cov_pub = self.create_publisher(MarkerArray, '/landmark_covariances', 10)
 
         # --- TF & Path Setup ---
@@ -83,7 +81,6 @@ class ImageSubscriber(Node):
         self.initialized = False
         self.init_frame_count = 0
         self.INIT_FRAMES = 15
-        self.theta_last = 0.0
 
         # --- Map ---
         self.map_points_3d = []
@@ -91,23 +88,22 @@ class ImageSubscriber(Node):
         self.map_times_seen = []
         self.map_times_expected = []
         self.map_missed_frames = []
-        self.map_covariances = []  # Stores the 2x2 Covariance matrix for each landmark
-        self.MAX_MISSED_FRAMES = 5
+        self.map_covariances = []
+        self.MAX_MISSED_FRAMES = 3
 
-        # --- Odometry Accumulators ---
+        # --- Odometry Accumulators (BODY FRAME) ---
         self.prev_wheel_x = None
         self.prev_wheel_y = None
         self.prev_imu_yaw = None
 
-        self.odom_dx_accum = 0.0
-        self.odom_dy_accum = 0.0
+        self.odom_forward_accum = 0.0
+        self.odom_lateral_accum = 0.0
         self.imu_dtheta_accum = 0.0
 
+        # current_u = [forward, lateral, yaw_delta]
         self.current_u = np.array([0.0, 0.0, 0.0])
 
-        # ---------------------------------------------------------
-        # NEW ODOMETRY PERFORMANCE PARAMETERS (3-SIGMA ERROR MODEL)
-        # ---------------------------------------------------------
+        # --- Odometry Performance Parameters ---
         self.MAX_X_ERROR_RATE = 0.03
         self.MAX_Y_ERROR_RATE = 0.03
         self.MAX_YAW_ERROR_RATE = 0.05
@@ -125,7 +121,6 @@ class ImageSubscriber(Node):
 
         self.LOW_INLIER_THRESHOLD = 20
         self.HIGH_INLIER_THRESHOLD = 35
-        self.last_r_threshold_state = None
 
     # ---------------------------------------------------------
     # IMU & Wheel Callbacks
@@ -142,7 +137,10 @@ class ImageSubscriber(Node):
 
         if self.prev_imu_yaw is not None:
             dyaw = wrap_angle(yaw - self.prev_imu_yaw)
-            self.imu_dtheta_accum += dyaw
+            
+            # UNIVERSAL FIX: Ignore impossible physical jumps.
+            if abs(dyaw) < 0.5: 
+                self.imu_dtheta_accum += dyaw
 
         self.prev_imu_yaw = yaw
 
@@ -154,8 +152,15 @@ class ImageSubscriber(Node):
             dx_global = x - self.prev_wheel_x
             dy_global = y - self.prev_wheel_y
 
-            self.odom_dx_accum += dx_global
-            self.odom_dy_accum += dy_global
+            # UNIVERSAL FIX: Use the True Body Yaw (self.global_yaw) 
+            c = math.cos(self.global_yaw)
+            s = math.sin(self.global_yaw)
+
+            d_forward = c * dx_global + s * dy_global
+            d_lateral = -s * dx_global + c * dy_global
+
+            self.odom_forward_accum += d_forward
+            self.odom_lateral_accum += d_lateral
 
         self.prev_wheel_x = x
         self.prev_wheel_y = y
@@ -164,61 +169,62 @@ class ImageSubscriber(Node):
     # EKF Functions
     # ---------------------------------------------------------
     def ekf_state_func(self, x):
-        dx_global, dy_global, dtheta = self.current_u
+        d_forward, d_lateral, dtheta = self.current_u
+        theta = x[2]
+
+        c = math.cos(theta)
+        s = math.sin(theta)
+
+        dx_global = d_forward * c - d_lateral * s
+        dy_global = d_forward * s + d_lateral * c
+
         new_x = x[0] + dx_global
         new_y = x[1] + dy_global
-        new_theta = wrap_angle(x[2] + dtheta)
+        new_theta = wrap_angle(theta + dtheta)
         return np.array([new_x, new_y, new_theta])
 
     def ekf_meas_func(self, x):
         return x.copy()
-    
+
     def _update_landmark_ekf(self, map_idx, cam_x, cam_y, cam_z):
-        """
-        Fuses a new camera observation with a previously saved map landmark 
-        using a 2D Extended Kalman Filter update step.
-        """
-        # 1. Project the new observation into the GLOBAL map frame
         pt_cam_new = np.array([cam_x, cam_y, cam_z, 1.0])
         pt_base_new = self.kinect_to_base_matrix @ pt_cam_new
         x_b_new, y_b_new, z_b_new = pt_base_new[0], pt_base_new[1], pt_base_new[2]
-        
-        x_global_new = (x_b_new * math.cos(self.global_yaw) - 
-                        y_b_new * math.sin(self.global_yaw) + self.global_x)
-        y_global_new = (x_b_new * math.sin(self.global_yaw) + 
-                        y_b_new * math.cos(self.global_yaw) + self.global_y)
+
+        x_global_new = (
+            x_b_new * math.cos(self.global_yaw)
+            - y_b_new * math.sin(self.global_yaw)
+            + self.global_x
+        )
+        y_global_new = (
+            x_b_new * math.sin(self.global_yaw)
+            + y_b_new * math.cos(self.global_yaw)
+            + self.global_y
+        )
         z_meas = np.array([x_global_new, y_global_new])
-        
-        # 2. Calculate the new observation's Covariance (R)
+
         R_new = self._compute_feature_covariance(cam_x, cam_z, self.global_yaw)
-        
-        # 3. Fetch the Prior Map State (X_old, P_old)
+
         pt_old = self.map_points_3d[map_idx]
         x_old_2d = np.array([pt_old[0], pt_old[1]])
         P_old = self.map_covariances[map_idx]
-        
-        # 4. Kalman Gain & Update Math
+
         try:
-            # K = P_old * inv(P_old + R_new)
             S_inv = np.linalg.inv(P_old + R_new)
             K = P_old @ S_inv
-            
-            # X_new = X_old + K * (Measurement - X_old)
+
             x_updated = x_old_2d + K @ (z_meas - x_old_2d)
-            
-            # P_new = (Identity - K) * P_old
             P_updated = (np.eye(2) - K) @ P_old
-            
-            # 5. Apply the fused data back into the map
+
             self.map_points_3d[map_idx][0] = float(x_updated[0])
             self.map_points_3d[map_idx][1] = float(x_updated[1])
-            self.map_points_3d[map_idx][2] = float((pt_old[2] + z_b_new) / 2.0) # Average height
+            self.map_points_3d[map_idx][2] = float((pt_old[2] + z_b_new) / 2.0)
             self.map_covariances[map_idx] = P_updated
         except np.linalg.LinAlgError:
             pass
 
     # ---------------------------------------------------------
-    # DYNAMIC COVARIANCE & SENSOR MODELING
+    # Dynamic Covariance & Sensor Modeling
     # ---------------------------------------------------------
     def _compute_dynamic_q(self, d):
         if d < 0.001:
@@ -235,41 +241,33 @@ class ImageSubscriber(Node):
         return np.diag([sigma_x**2, sigma_y**2, sigma_yaw**2])
 
     def _compute_feature_covariance(self, cam_x, cam_z, global_yaw):
-        """
-        Calculates the 2D covariance matrix for a landmark based on slides 22-24.
-        """
-        # 1. Calculate distance (d) and azimuth angle from the camera
         d = math.sqrt(cam_x**2 + cam_z**2)
         if d < 0.001:
             return np.diag([1e-5, 1e-5])
 
         theta_cam = math.atan2(cam_x, cam_z)
 
-        # 2. Apply rules from Slide 23
         sigma_d = (d * 0.01) / 3.0
         sigma_a = (d * math.sin(math.radians(3.0))) / 3.0
 
-        # 3. Create Scaling Matrix S
         S = np.array([
             [sigma_a, 0.0],
             [0.0, sigma_d]
         ])
 
-        # 4. Rotation Matrix R (Rotate to align with global map orientation)
         global_theta = wrap_angle(global_yaw + theta_cam)
         R_rot = np.array([
             [math.cos(global_theta), -math.sin(global_theta)],
             [math.sin(global_theta), math.cos(global_theta)],
         ])
 
-        # 5. Calculate Sigma' = R * S * S * R^T (Slide 24)
         S_squared = S @ S
         cov_matrix = R_rot @ S_squared @ R_rot.T
-
         return cov_matrix
 
-    def _update_filter_noise(self, state, inlier_count, driven_distance):
+    def _update_filter_noise(self, state, driven_distance):
         dynamic_Q = self._compute_dynamic_q(driven_distance)
+
         if state == 'low':
             self.ekf.setR(np.diag([50.0, 50.0, 10.0]))
             self.ekf.setQ(dynamic_Q * 2.0)
@@ -281,15 +279,15 @@ class ImageSubscriber(Node):
             self.ekf.setQ(dynamic_Q)
 
     def _commit_predict(self, driven_distance):
-        dx, dy, dtheta = self.current_u
+        d_forward, d_lateral, dtheta = self.current_u
         theta = float(self.ekf.x[2])
 
         c = math.cos(theta)
         s = math.sin(theta)
 
         JF = np.array([
-            [c, -s, -dx * s - dy * c],
-            [s, c, dx * c - dy * s],
+            [c, -s, -d_forward * s - d_lateral * c],
+            [s,  c,  d_forward * c - d_lateral * s],
             [0.0, 0.0, 1.0],
         ])
 
@@ -304,7 +302,10 @@ class ImageSubscriber(Node):
         self.ekf.P = P_pred
         self.ekf.x[2] = wrap_angle(self.ekf.x[2])
 
-    def _publish_current_state(self, inlier_count):
+    def _publish_current_state(self, inlier_count, vis_indices=None):
+        if vis_indices is None:
+            vis_indices = []
+
         self.global_x = float(self.ekf.x[0])
         self.global_y = float(self.ekf.x[1])
         self.global_yaw = wrap_angle(float(self.ekf.x[2]))
@@ -325,20 +326,26 @@ class ImageSubscriber(Node):
             self.global_yaw,
             inlier_count,
         )
-        
-        self._publish_covariances()
 
-    def _publish_covariances(self):
+        self._publish_covariances(vis_indices)
+
+    def _publish_covariances(self, vis_indices):
         if not self.map_points_3d or not self.map_covariances:
             return
 
         marker_array = MarkerArray()
-
         delete_marker = Marker()
         delete_marker.action = Marker.DELETEALL
         marker_array.markers.append(delete_marker)
 
-        for i, (pt, cov) in enumerate(zip(self.map_points_3d, self.map_covariances)):
+        # ONLY loop through points the camera can currently see!
+        for i in vis_indices:
+            # Safety check in case of out of bounds
+            if i >= len(self.map_points_3d):
+                continue
+
+            pt = self.map_points_3d[i]
+            cov = self.map_covariances[i]
             eigenvalues, eigenvectors = np.linalg.eigh(cov)
 
             order = eigenvalues.argsort()[::-1]
@@ -410,16 +417,24 @@ class ImageSubscriber(Node):
         if self.depth_image is None:
             return
 
-        u_dx = self.odom_dx_accum
-        u_dy = self.odom_dy_accum
+        u_forward = self.odom_forward_accum
+        u_lateral = self.odom_lateral_accum
         u_dtheta = self.imu_dtheta_accum
 
-        self.odom_dx_accum = 0.0
-        self.odom_dy_accum = 0.0
+        self.odom_forward_accum = 0.0
+        self.odom_lateral_accum = 0.0
         self.imu_dtheta_accum = 0.0
 
-        self.current_u = np.array([u_dx, u_dy, u_dtheta])
-        driven_distance = math.sqrt(u_dx**2 + u_dy**2)
+        self.current_u = np.array([u_forward, u_lateral, u_dtheta])
+        driven_distance = math.sqrt(u_forward**2 + u_lateral**2)
+
+        rotation_magnitude = abs(u_dtheta)
+        is_high_rotation = rotation_magnitude > 0.3
+        
+        # Detect omnidirectional slip conditions
+        strafing_laterally = abs(u_lateral) > 0.01
+        moving_backward = u_forward < -0.01
+        is_high_slip = strafing_laterally or moving_backward
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         kp, des, points = feature_detector(frame, self.depth_image)
@@ -427,9 +442,9 @@ class ImageSubscriber(Node):
         self._commit_predict(driven_distance)
 
         if not kp or len(kp) < MIN_KEYPOINTS:
-            self._update_filter_noise('low', 0, driven_distance)
-            self.prune_landmarks()
+            self._update_filter_noise('low', driven_distance)
             self._publish_current_state(0)
+            self.prune_landmarks()
             self.prev_kp = kp
             self.prev_frame = frame
             return
@@ -442,8 +457,8 @@ class ImageSubscriber(Node):
             self.add_new_landmarks(points, des, set())
             self.init_frame_count += 1
 
-            self.prune_landmarks()
             self._publish_current_state(0)
+            self.prune_landmarks()
 
             if self.init_frame_count >= self.INIT_FRAMES:
                 self.initialized = True
@@ -453,13 +468,15 @@ class ImageSubscriber(Node):
             return
 
         if self.prev_kp is None:
-            self.prune_landmarks()
             self._publish_current_state(0)
+            self.prune_landmarks()
             self.prev_kp = kp
             self.prev_frame = frame
             return
 
         inlier_count = 0
+        raw_match_count = 0
+        vis_indices = []
 
         try:
             self.global_x = float(self.ekf.x[0])
@@ -485,6 +502,7 @@ class ImageSubscriber(Node):
                 if len(vis_des_array) > 0:
                     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
                     map_matches = bf.match(vis_des_array, des)
+                    raw_match_count = len(map_matches)
 
                     cos_yaw = math.cos(-self.global_yaw)
                     sin_yaw = math.sin(-self.global_yaw)
@@ -512,9 +530,15 @@ class ImageSubscriber(Node):
                             continue
 
                         observed_depth = points[m.trainIdx][2]
-                        depth_tolerance = 0.4
-                        depth_ratio = abs(cam_z - observed_depth) / max(cam_z, observed_depth)
 
+                        if is_high_rotation:
+                            depth_tolerance = 3.0
+                        elif is_high_slip:
+                            depth_tolerance = 2.0
+                        else:
+                            depth_tolerance = 1.5
+
+                        depth_ratio = abs(cam_z - observed_depth) / max(cam_z, observed_depth)
                         if depth_ratio > depth_tolerance:
                             continue
 
@@ -543,25 +567,53 @@ class ImageSubscriber(Node):
 
             if len(P) >= MIN_KEYPOINTS:
                 n_matches = len(P)
-                ransac_thresh = 0.05 if n_matches >= 15 else 0.10
+
+                if is_high_rotation:
+                    ransac_thresh = 0.40 if n_matches < 10 else (0.30 if n_matches < 15 else 0.15)
+                elif is_high_slip:
+                    ransac_thresh = 0.30 if n_matches < 10 else (0.20 if n_matches < 15 else 0.12)
+                else:
+                    ransac_thresh = 0.25 if n_matches < 10 else (0.15 if n_matches < 15 else 0.08)
+
                 R_2d, t_2d, P_in, Q_in, inlier_count, outlier_count = ransac_kabsch(
                     P, Q_mat, threshold=ransac_thresh
                 )
 
             if R_2d is None or inlier_count < MIN_INLIERS:
-                self._update_filter_noise('low', inlier_count, driven_distance)
+                self._update_filter_noise('low', driven_distance)
+
+                if is_high_rotation and inlier_count < 3:
+                    theta = float(self.ekf.x[2])
+                    c = math.cos(theta)
+                    s = math.sin(theta)
+
+                    dx_global = u_forward * c - u_lateral * s
+                    dy_global = u_forward * s + u_lateral * c
+
+                    z_x = self.ekf.x[0] + dx_global
+                    z_y = self.ekf.x[1] + dy_global
+                    z_yaw = wrap_angle(self.ekf.x[2] + u_dtheta)
+
+                    z_pose = np.array([z_x, z_y, z_yaw])
+                    self.ekf.update(z_pose)
+                    self.ekf.x[2] = wrap_angle(self.ekf.x[2])
             else:
                 if inlier_count < self.LOW_INLIER_THRESHOLD:
-                    self._update_filter_noise('low', inlier_count, driven_distance)
+                    self._update_filter_noise('low', driven_distance)
                 elif inlier_count < self.HIGH_INLIER_THRESHOLD:
-                    self._update_filter_noise('medium', inlier_count, driven_distance)
+                    self._update_filter_noise('medium', driven_distance)
                 else:
-                    self._update_filter_noise('high', inlier_count, driven_distance)
+                    self._update_filter_noise('high', driven_distance)
 
                 vo_dtheta = wrap_angle(math.atan2(R_2d[1, 0], R_2d[0, 0]))
 
-                alpha_xy = 0.15 if inlier_count < 25 else 0.30
-                alpha_yaw = 0.60 if inlier_count < 25 else 0.85
+                alpha_xy = 0.10 if inlier_count < 25 else 0.25
+                alpha_yaw = 0.55 if inlier_count < 25 else 0.80
+
+                if is_high_rotation:
+                    alpha_xy *= 0.3
+                elif is_high_slip:
+                    alpha_xy *= 0.5
 
                 theta_current = wrap_angle(float(self.ekf.x[2]))
                 cos_t = math.cos(theta_current)
@@ -581,20 +633,29 @@ class ImageSubscriber(Node):
                 self.ekf.update(z_pose)
                 self.ekf.x[2] = wrap_angle(self.ekf.x[2])
 
-                self.global_x = float(self.ekf.x[0])
-                self.global_y = float(self.ekf.x[1])
-                self.global_yaw = wrap_angle(float(self.ekf.x[2]))
+            self.global_x = float(self.ekf.x[0])
+            self.global_y = float(self.ekf.x[1])
+            self.global_yaw = wrap_angle(float(self.ekf.x[2]))
 
+            # --- UNIVERSAL FIX: MAP STARVATION RECOVERY ---
             if inlier_count >= MIN_INLIERS:
                 self.add_new_landmarks(points, des, matched_current_indices)
+            elif len(points) >= MIN_KEYPOINTS:
+                self.get_logger().info("Unmapped territory detected (0 inliers). Seeding new map features.")
+                self.add_new_landmarks(points, des, set())
 
+            # IMPORTANT: Publish before pruning to avoid index out-of-bounds errors 
+            # with the vis_indices array!
+            self._publish_current_state(inlier_count, vis_indices)
             self.prune_landmarks()
-            self._publish_current_state(inlier_count)
 
             self.get_logger().info(
                 f"Pose: X:{self.global_x:.2f} Y:{self.global_y:.2f} "
                 f"Yaw:{math.degrees(self.global_yaw):.1f}° "
-                f"Inliers:{inlier_count} MapPts:{len(self.map_points_3d)} d:{driven_distance:.3f}m"
+                f"Inliers:{inlier_count} MapPts:{len(self.map_points_3d)} "
+                f"vis:{len(vis_indices)} raw:{raw_match_count} kept:{len(P)} "
+                f"ufwd:{u_forward:.3f} ulat:{u_lateral:.3f} "
+                f"d:{driven_distance:.3f}m"
             )
 
         finally:
@@ -626,11 +687,8 @@ class ImageSubscriber(Node):
             y_global = x_base * sin_yaw + y_base * cos_yaw + self.global_y
             z_global = z_base
 
-            # --- SENSOR MODELING UPDATE ---
-            # Calculate and store covariance using the class method
             point_covariance = self._compute_feature_covariance(x_cam, z_cam, self.global_yaw)
             self.map_covariances.append(point_covariance)
-            # ------------------------------
 
             self.map_points_3d.append([x_global, y_global, z_global])
             self.map_descriptors.append(current_descriptors[i])
@@ -650,18 +708,23 @@ class ImageSubscriber(Node):
         good_seen = []
         good_expected = []
         good_missed = []
-        good_covariances = []  # Fix: Ensures covariances stay synced!
+        good_covariances = []
         removed_count = 0
 
         for i in range(len(self.map_points_3d)):
             times_seen = self.map_times_seen[i]
             missed = self.map_missed_frames[i]
+            expected = self.map_times_expected[i]
 
-            if times_seen < 5 and missed > self.MAX_MISSED_FRAMES:
+            # Rule 1: Point has been missed too many times recently
+            if missed > self.MAX_MISSED_FRAMES:
                 removed_count += 1
                 continue
 
-            if times_seen >= 5 and missed > self.MAX_MISSED_FRAMES:
+            # Rule 2: Garbage Collection for "Ghost" points.
+            # If the point was heavily expected to be seen but was only 
+            # successfully matched 1 or 2 times, it was likely noise. Delete it.
+            if expected > 3 and times_seen < 3:
                 removed_count += 1
                 continue
 
@@ -689,14 +752,13 @@ def wrap_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
-def get_visible_landmarks(
-    map_points_3d, global_x, global_y, global_yaw, base_to_kinect_matrix
-):
+def get_visible_landmarks(map_points_3d, global_x, global_y, global_yaw, base_to_kinect_matrix):
     vis_indices = []
     cos_yaw = math.cos(-global_yaw)
     sin_yaw = math.sin(-global_yaw)
 
-    MAX_LANDMARK_DISTANCE = 4.0
+    # INCREASED: So points at 5.0m don't instantly disappear next frame
+    MAX_LANDMARK_DISTANCE = 6.0
 
     for i, pt in enumerate(map_points_3d):
         dx = pt[0] - global_x
@@ -715,7 +777,7 @@ def get_visible_landmarks(
         pt_cam = base_to_kinect_matrix @ pt_base
         cam_x, cam_y, cam_z = pt_cam[0], pt_cam[1], pt_cam[2]
 
-        if cam_z <= 0.1 or cam_z > 4.0:
+        if cam_z <= 0.1 or cam_z > 6.0:
             continue
 
         u = (cam_x * f / cam_z) + cx
@@ -728,7 +790,7 @@ def get_visible_landmarks(
 
 
 def feature_detector(frame, depth_image):
-    orb = cv2.ORB_create()
+    orb = cv2.ORB_create(nfeatures=1000)
     kp, des = orb.detectAndCompute(frame, None)
 
     if not kp:
@@ -867,7 +929,10 @@ def kabsch_2d(P, Q):
     den = np.sum(Q_c[:, 0] * P_c[:, 0] + Q_c[:, 1] * P_c[:, 1])
     theta = math.atan2(num, den)
 
-    R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+    R = np.array([
+        [np.cos(theta), -np.sin(theta)],
+        [np.sin(theta), np.cos(theta)]
+    ])
     t = P_mean - (R @ Q_mean)
     return R, t
 
@@ -886,6 +951,17 @@ def ransac_kabsch(P, Q, iterations=200, threshold=0.05):
     if n < MIN_KEYPOINTS:
         return None, None, P, Q, 0, 0
 
+    if n < 8:
+        R_hyp, t_hyp = kabsch_2d(P, Q)
+        errors = calculate_errors(P, Q, R_hyp, t_hyp)
+        inlier_count = np.sum(errors < threshold)
+        if inlier_count >= 3:
+            return R_hyp, t_hyp, P, Q, int(inlier_count), n - int(inlier_count)
+        inlier_count = np.sum(errors < threshold * 2)
+        if inlier_count >= 3:
+            return R_hyp, t_hyp, P, Q, int(inlier_count), n - int(inlier_count)
+        return None, None, P, Q, 0, 0
+
     for _ in range(iterations):
         idx = random.sample(range(n), 3)
         P_s, Q_s = P[idx], Q[idx]
@@ -899,7 +975,7 @@ def ransac_kabsch(P, Q, iterations=200, threshold=0.05):
             best_count = inlier_count
             best_inliers = inliers
 
-    if best_inliers is None or np.sum(best_inliers) < MIN_KEYPOINTS:
+    if best_inliers is None or np.sum(best_inliers) < 3:
         return None, None, P, Q, 0, 0
 
     P_in, Q_in = P[best_inliers], Q[best_inliers]
