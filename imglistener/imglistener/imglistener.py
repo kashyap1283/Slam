@@ -10,6 +10,7 @@ import std_msgs.msg
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Quaternion, TransformStamped, PoseStamped
 from nav_msgs.msg import Odometry, Path
+from rclpy.duration import Duration
 from rclpy.node import Node
 from sensor_msgs.msg import Image, Imu, PointCloud2
 from tf2_ros import TransformBroadcaster, TransformListener, Buffer
@@ -20,7 +21,8 @@ from tf_transformations import (
 )
 from visualization_msgs.msg import Marker, MarkerArray
 
-from imglistener.ekf import ExtKalman
+from .ekf import ExtKalman
+
 
 MIN_KEYPOINTS = 5
 MIN_INLIERS = 8
@@ -36,15 +38,18 @@ class ImageSubscriber(Node):
 
         self.bridge = CvBridge()
 
-        # --- Camera Subscriptions ---
+        # ---------------- Frame names ----------------
+        self.odom_frame = 'orb_odom'
+        self.base_frame = 'base_link'
+        self.camera_frame = 'kinect_depth'   # change this if your real TF frame is different
+
+        # ---------------- Subscriptions ----------------
         self.subscription = self.create_subscription(
             Image, '/serf01/nav_rgbd_1/rgb/image_raw', self.listener_callback, 10
         )
         self.depth_sub = self.create_subscription(
             Image, '/serf01/nav_rgbd_1/depth/image_raw', self.depth_subscription, 10
         )
-
-        # --- IMU & Wheel Odom Subscriptions ---
         self.wheel_sub = self.create_subscription(
             Odometry, '/serf01/odometry/wheel', self.wheel_callback, 10
         )
@@ -52,28 +57,33 @@ class ImageSubscriber(Node):
             Imu, '/serf01/odometry/imu', self.imu_callback, 10
         )
 
-        # --- Publishers ---
+        # ---------------- Publishers ----------------
         self.pc_pub = self.create_publisher(PointCloud2, '/orb_pointcloud', 10)
         self.current_pc_pub = self.create_publisher(PointCloud2, '/global_cloud', 10)
         self.odom_pub = self.create_publisher(Odometry, '/serf01/odometry/project_slam', 10)
         self.path_pub = self.create_publisher(Path, '/orb_path', 10)
         self.cov_pub = self.create_publisher(MarkerArray, '/landmark_covariances', 10)
 
-        # --- TF & Path Setup ---
+        # ---------------- TF ----------------
         self.tf_broadcaster = TransformBroadcaster(self)
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=True)
 
         self.kinect_to_base_matrix = None
         self.base_to_kinect_matrix = None
+        self.static_tf_ready = False
 
+        # ---------------- Path ----------------
         self.path_msg = Path()
-        self.path_msg.header.frame_id = 'orb_odom'
+        self.path_msg.header.frame_id = self.odom_frame
 
+        # ---------------- Image state ----------------
         self.depth_image = None
         self.prev_kp = None
         self.prev_frame = None
+        self.current_time = None
 
+        # ---------------- Robot state ----------------
         self.global_x = 0.0
         self.global_y = 0.0
         self.global_yaw = 0.0
@@ -82,7 +92,7 @@ class ImageSubscriber(Node):
         self.init_frame_count = 0
         self.INIT_FRAMES = 15
 
-        # --- Map ---
+        # ---------------- Map ----------------
         self.map_points_3d = []
         self.map_descriptors = []
         self.map_times_seen = []
@@ -91,7 +101,7 @@ class ImageSubscriber(Node):
         self.map_covariances = []
         self.MAX_MISSED_FRAMES = 3
 
-        # --- Odometry Accumulators (BODY FRAME) ---
+        # ---------------- Odom accumulators ----------------
         self.prev_wheel_x = None
         self.prev_wheel_y = None
         self.prev_imu_yaw = None
@@ -100,15 +110,14 @@ class ImageSubscriber(Node):
         self.odom_lateral_accum = 0.0
         self.imu_dtheta_accum = 0.0
 
-        # current_u = [forward, lateral, yaw_delta]
         self.current_u = np.array([0.0, 0.0, 0.0])
 
-        # --- Odometry Performance Parameters ---
+        # ---------------- Noise params ----------------
         self.MAX_X_ERROR_RATE = 0.03
         self.MAX_Y_ERROR_RATE = 0.03
         self.MAX_YAW_ERROR_RATE = 0.05
 
-        # --- EKF Initialization ---
+        # ---------------- EKF ----------------
         self.ekf = ExtKalman(
             x=np.array([0.0, 0.0, 0.0]),
             state_func=self.ekf_state_func,
@@ -121,6 +130,55 @@ class ImageSubscriber(Node):
 
         self.LOW_INLIER_THRESHOLD = 20
         self.HIGH_INLIER_THRESHOLD = 35
+
+    # ---------------------------------------------------------
+    # TF helpers
+    # ---------------------------------------------------------
+    def try_get_camera_tf(self):
+        if self.static_tf_ready:
+            return True
+
+        try:
+            if not self.tf_buffer.can_transform(
+                self.base_frame,
+                self.camera_frame,
+                rclpy.time.Time(),
+                timeout=Duration(seconds=0.2),
+            ):
+                self.get_logger().warn(
+                    f"Waiting for TF: {self.base_frame} -> {self.camera_frame}"
+                )
+                return False
+
+            t = self.tf_buffer.lookup_transform(
+                self.base_frame,
+                self.camera_frame,
+                rclpy.time.Time(),
+                timeout=Duration(seconds=0.2),
+            )
+
+            quat = [
+                t.transform.rotation.x,
+                t.transform.rotation.y,
+                t.transform.rotation.z,
+                t.transform.rotation.w,
+            ]
+
+            self.kinect_to_base_matrix = quaternion_matrix(quat)
+            self.kinect_to_base_matrix[0, 3] = t.transform.translation.x
+            self.kinect_to_base_matrix[1, 3] = t.transform.translation.y
+            self.kinect_to_base_matrix[2, 3] = t.transform.translation.z
+            self.base_to_kinect_matrix = np.linalg.inv(self.kinect_to_base_matrix)
+
+            self.static_tf_ready = True
+            self.get_logger().info(
+                f"Got static TF: {self.base_frame} <- {self.camera_frame}"
+            )
+            return True
+
+        except Exception as e:
+            self.get_logger().warn(f"TF lookup failed: {e}")
+            return False
 
     # ---------------------------------------------------------
     # IMU & Wheel Callbacks
@@ -137,9 +195,7 @@ class ImageSubscriber(Node):
 
         if self.prev_imu_yaw is not None:
             dyaw = wrap_angle(yaw - self.prev_imu_yaw)
-            
-            # UNIVERSAL FIX: Ignore impossible physical jumps.
-            if abs(dyaw) < 0.5: 
+            if abs(dyaw) < 0.5:
                 self.imu_dtheta_accum += dyaw
 
         self.prev_imu_yaw = yaw
@@ -152,7 +208,6 @@ class ImageSubscriber(Node):
             dx_global = x - self.prev_wheel_x
             dy_global = y - self.prev_wheel_y
 
-            # UNIVERSAL FIX: Use the True Body Yaw (self.global_yaw) 
             c = math.cos(self.global_yaw)
             s = math.sin(self.global_yaw)
 
@@ -315,7 +370,7 @@ class ImageSubscriber(Node):
                 np.array(self.map_points_3d),
                 self.current_pc_pub,
                 self.current_time,
-                "orb_odom",
+                self.odom_frame,
             )
 
         publish_odometry(
@@ -338,9 +393,7 @@ class ImageSubscriber(Node):
         delete_marker.action = Marker.DELETEALL
         marker_array.markers.append(delete_marker)
 
-        # ONLY loop through points the camera can currently see!
         for i in vis_indices:
-            # Safety check in case of out of bounds
             if i >= len(self.map_points_3d):
                 continue
 
@@ -355,7 +408,7 @@ class ImageSubscriber(Node):
             angle = math.atan2(eigenvectors[1, 0], eigenvectors[0, 0])
 
             m = Marker()
-            m.header.frame_id = "orb_odom"
+            m.header.frame_id = self.odom_frame
             m.header.stamp = self.current_time
             m.ns = "covariances"
             m.id = i
@@ -394,25 +447,8 @@ class ImageSubscriber(Node):
     def listener_callback(self, msg):
         self.current_time = msg.header.stamp
 
-        if self.kinect_to_base_matrix is None:
-            try:
-                t = self.tf_buffer.lookup_transform(
-                    'base_link', 'kinect_depth', rclpy.time.Time()
-                )
-                quat = [
-                    t.transform.rotation.x,
-                    t.transform.rotation.y,
-                    t.transform.rotation.z,
-                    t.transform.rotation.w,
-                ]
-                self.kinect_to_base_matrix = quaternion_matrix(quat)
-                self.kinect_to_base_matrix[0, 3] = t.transform.translation.x
-                self.kinect_to_base_matrix[1, 3] = t.transform.translation.y
-                self.kinect_to_base_matrix[2, 3] = t.transform.translation.z
-                self.base_to_kinect_matrix = np.linalg.inv(self.kinect_to_base_matrix)
-            except Exception as e:
-                self.get_logger().info(f"Waiting for static TF: {e}")
-                return
+        if not self.try_get_camera_tf():
+            return
 
         if self.depth_image is None:
             return
@@ -430,8 +466,7 @@ class ImageSubscriber(Node):
 
         rotation_magnitude = abs(u_dtheta)
         is_high_rotation = rotation_magnitude > 0.3
-        
-        # Detect omnidirectional slip conditions
+
         strafing_laterally = abs(u_lateral) > 0.01
         moving_backward = u_forward < -0.01
         is_high_slip = strafing_laterally or moving_backward
@@ -637,15 +672,12 @@ class ImageSubscriber(Node):
             self.global_y = float(self.ekf.x[1])
             self.global_yaw = wrap_angle(float(self.ekf.x[2]))
 
-            # --- UNIVERSAL FIX: MAP STARVATION RECOVERY ---
             if inlier_count >= MIN_INLIERS:
                 self.add_new_landmarks(points, des, matched_current_indices)
             elif len(points) >= MIN_KEYPOINTS:
                 self.get_logger().info("Unmapped territory detected (0 inliers). Seeding new map features.")
                 self.add_new_landmarks(points, des, set())
 
-            # IMPORTANT: Publish before pruning to avoid index out-of-bounds errors 
-            # with the vis_indices array!
             self._publish_current_state(inlier_count, vis_indices)
             self.prune_landmarks()
 
@@ -716,14 +748,10 @@ class ImageSubscriber(Node):
             missed = self.map_missed_frames[i]
             expected = self.map_times_expected[i]
 
-            # Rule 1: Point has been missed too many times recently
             if missed > self.MAX_MISSED_FRAMES:
                 removed_count += 1
                 continue
 
-            # Rule 2: Garbage Collection for "Ghost" points.
-            # If the point was heavily expected to be seen but was only 
-            # successfully matched 1 or 2 times, it was likely noise. Delete it.
             if expected > 3 and times_seen < 3:
                 removed_count += 1
                 continue
@@ -757,7 +785,6 @@ def get_visible_landmarks(map_points_3d, global_x, global_y, global_yaw, base_to
     cos_yaw = math.cos(-global_yaw)
     sin_yaw = math.sin(-global_yaw)
 
-    # INCREASED: So points at 5.0m don't instantly disappear next frame
     MAX_LANDMARK_DISTANCE = 6.0
 
     for i, pt in enumerate(map_points_3d):
@@ -850,8 +877,8 @@ def pointcloud(points, pc_pub, stamp, frame_id="orb_odom"):
 def publish_odometry(node, current_time, global_x, global_y, global_yaw, inlier_count):
     odom_msg = Odometry()
     odom_msg.header.stamp = current_time
-    odom_msg.header.frame_id = 'orb_odom'
-    odom_msg.child_frame_id = 'base_link'
+    odom_msg.header.frame_id = node.odom_frame
+    odom_msg.child_frame_id = node.base_frame
 
     odom_msg.pose.pose.position.x = float(global_x)
     odom_msg.pose.pose.position.y = float(global_y)
@@ -883,8 +910,8 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw, inlier_
 
     t_msg = TransformStamped()
     t_msg.header.stamp = current_time
-    t_msg.header.frame_id = 'orb_odom'
-    t_msg.child_frame_id = 'base_link'
+    t_msg.header.frame_id = node.odom_frame
+    t_msg.child_frame_id = node.base_frame
     t_msg.transform.translation.x = float(global_x)
     t_msg.transform.translation.y = float(global_y)
     t_msg.transform.translation.z = 0.0
@@ -894,7 +921,7 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw, inlier_
     if len(node.path_msg.poses) == 0:
         pose = PoseStamped()
         pose.header.stamp = current_time
-        pose.header.frame_id = 'orb_odom'
+        pose.header.frame_id = node.odom_frame
         pose.pose.position.x = float(global_x)
         pose.pose.position.y = float(global_y)
         pose.pose.position.z = 0.0
@@ -909,7 +936,7 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw, inlier_
         if dist > 0.1:
             pose = PoseStamped()
             pose.header.stamp = current_time
-            pose.header.frame_id = 'orb_odom'
+            pose.header.frame_id = node.odom_frame
             pose.pose.position.x = float(global_x)
             pose.pose.position.y = float(global_y)
             pose.pose.position.z = 0.0
