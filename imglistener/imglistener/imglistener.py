@@ -223,7 +223,7 @@ class FastSlamNode(Node):
 
                 cos_yaw, sin_yaw = math.cos(-particle.yaw), math.sin(-particle.yaw)
                 
-                # --- B. Landmark Kalman Filter Updates ---
+                # --- B. Landmark Kalman Filter Updates for Key Points ---
                 for m in matches:
                     if m.distance >= 50: continue # Reject poor descriptor matches
                     
