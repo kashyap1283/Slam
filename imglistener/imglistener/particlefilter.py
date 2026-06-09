@@ -39,10 +39,11 @@ class Particle:
         self.y += noisy_fwd * s + noisy_lat * c
         self.yaw = self._wrap_angle(self.yaw + noisy_yaw)
 
-    def update_landmark(self, landmark_idx, z_meas, R, Q_kf):
+    def update_landmark(self, landmark_idx, v_inn, R, Q_kf, particle_yaw, kinect_to_base_matrix=None):
         """
-        Updates a specific landmark using the Linear Kalman Filter.
-        Returns the innovation (v) and innovation covariance (S) for weight updating.
+        Updates an existing landmark's mean position and covariance using the EKF.
+        Takes the pre-calculated innovation (v_inn) from the camera optical frame, 
+        applies the Kalman Gain, and strictly rotates it into the global map frame.
         """
         landmark = self.map[landmark_idx]
         
@@ -56,15 +57,32 @@ class Particle:
             # 3. Kalman Gain
             K = P_pred @ np.linalg.inv(S)
             
-            x_old_2d = landmark.pos_3d[0:2]
-            v = z_meas - x_old_2d # Innovation
+            # Calculate the spatial correction strictly in the Camera Optical frame
+            correction_cam = K @ v_inn                    
             
-            # 4. Update Map State
-            x_up = x_old_2d + K @ v
-            landmark.pos_3d[0:2] = x_up
-            landmark.covariance = (np.eye(2) - K) @ P_pred
-            
-            return v, S
+            # 4. Map camera optical corrections straight to local robot base coordinates
+            # correction_cam[1] is camera depth (+Z) -> maps to robot local forward (+X)
+            # correction_cam[0] is camera lateral (+X) -> maps to robot local right (-Y). Negate for ROS Left (+Y)
+            robot_local_x = correction_cam[1]
+            robot_local_y = -correction_cam[0]
+
+            # 5. Rotate the local robot base displacements to match global map coordinates
+            c = math.cos(particle_yaw)
+            s = math.sin(particle_yaw)
+
+            delta_world_x = robot_local_x * c - robot_local_y * s
+            delta_world_y = robot_local_x * s + robot_local_y * c
+
+            # Apply corrections cleanly to the global 2D plane
+            landmark.pos_3d[0] += delta_world_x
+            landmark.pos_3d[1] += delta_world_y
+
+            # 6. Update EKF Landmark uncertainty using the stable Joseph Form
+            IKH = np.eye(2) - K
+            landmark.covariance = IKH @ P_pred @ IKH.T + K @ R @ K.T
+
+            return v_inn, S
+
         except np.linalg.LinAlgError:
             return None, None
             
