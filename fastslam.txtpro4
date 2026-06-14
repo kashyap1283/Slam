@@ -1,0 +1,359 @@
+Sat Jun 13 11:53:47 2026    fastslam.prof_RANSAC
+
+         35782018 function calls (34231252 primitive calls) in 134.414 seconds
+
+   Ordered by: cumulative time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       13    0.278    0.021  123.156    9.474 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/transform_broadcaster.py:63(sendTransform)
+    14934    3.055    0.000  119.334    0.008 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:221(_estimate_frame_motion)
+    12443    6.803    0.001  107.764    0.009 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:408(ransac_kabsch)
+   387417   12.515    0.000   68.380    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:466(kabsch_2d)
+   774834    2.811    0.000   50.000    0.000 /usr/lib/python3/dist-packages/numpy/core/fromnumeric.py:3385(mean)
+   774834   13.370    0.000   47.189    0.000 /usr/lib/python3/dist-packages/numpy/core/_methods.py:101(_mean)
+   388223    5.274    0.000   22.518    0.000 /usr/lib/python3.12/random.py:359(sample)
+    14933    1.593    0.000    9.607    0.001 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:279(_process_particle_data_association)
+  1209390    5.536    0.000    9.367    0.000 /usr/lib/python3.12/random.py:242(_randbelow_with_getrandbits)
+       27    0.006    0.000    9.148    0.339 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/publisher.py:60(publish)
+  2338472    3.782    0.000    8.708    0.000 {built-in method builtins.isinstance}
+    26734    8.213    0.000    8.213    0.000 {method 'match' of 'cv2.DescriptorMatcher' objects}
+   774834    2.294    0.000    7.747    0.000 /usr/lib/python3.12/contextlib.py:141(__exit__)
+   774834    2.133    0.000    7.482    0.000 /usr/lib/python3.12/contextlib.py:132(__enter__)
+   399350    1.921    0.000    6.580    0.000 /usr/lib/python3/dist-packages/numpy/core/fromnumeric.py:2177(sum)
+  1549668    4.147    0.000    6.524    0.000 /usr/lib/python3/dist-packages/numpy/core/_ufunc_config.py:452(_no_nep50_warning)
+   774834    3.976    0.000    6.113    0.000 /usr/lib/python3/dist-packages/numpy/core/_methods.py:67(_count_reduce_items)
+   774834    2.315    0.000    5.758    0.000 /usr/lib/python3.12/contextlib.py:299(helper)
+   388223    1.031    0.000    4.925    0.000 <frozen abc>:117(__instancecheck__)
+   413283    2.148    0.000    4.256    0.000 /usr/lib/python3/dist-packages/numpy/core/fromnumeric.py:71(_wrapreduction)
+   380517    4.172    0.000    4.172    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:480(calculate_errors)
+  1188117    4.110    0.000    4.110    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+   388223    1.244    0.000    3.894    0.000 {built-in method _abc._abc_instancecheck}
+    14933    1.060    0.000    3.628    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:385(_extend_particle_landmark_map)
+   774834    2.376    0.000    3.443    0.000 /usr/lib/python3.12/contextlib.py:104(__init__)
+373293/373291    0.985    0.000    2.651    0.000 <frozen abc>:121(__subclasscheck__)
+    26734    1.329    0.000    2.520    0.000 {method 'sort' of 'list' objects}
+  1748115    2.368    0.000    2.368    0.000 {method 'append' of 'list' objects}
+  1720448    2.223    0.000    2.223    0.000 {method 'getrandbits' of '_random.Random' objects}
+  1549671    2.088    0.000    2.088    0.000 {built-in method builtins.issubclass}
+  1549669    2.019    0.000    2.019    0.000 /usr/lib/python3/dist-packages/numpy/core/multiarray.py:741(dot)
+373293/373291    1.161    0.000    1.666    0.000 {built-in method _abc._abc_subclasscheck}
+  1209390    1.608    0.000    1.608    0.000 {method 'bit_length' of 'int' objects}
+    14933    0.967    0.000    1.344    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:487(get_visible_landmarks)
+  1008786    1.343    0.000    1.343    0.000 {method 'add' of 'set' objects}
+    94740    0.779    0.000    1.320    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:149(_compute_feature_covariance)
+   774834    1.197    0.000    1.197    0.000 {method 'set' of '_contextvars.ContextVar' objects}
+   774834    1.180    0.000    1.180    0.000 {method 'reset' of '_contextvars.ContextVar' objects}
+   852882    1.162    0.000    1.162    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:228(<lambda>)
+   784249    1.080    0.000    1.080    0.000 {built-in method builtins.getattr}
+   774834    1.079    0.000    1.079    0.000 {built-in method numpy.core._multiarray_umath.normalize_axis_index}
+   774835    1.032    0.000    1.032    0.000 {built-in method numpy.asanyarray}
+   774834    1.031    0.000    1.031    0.000 /usr/lib/python3/dist-packages/numpy/core/fromnumeric.py:3380(_mean_dispatcher)
+   387474    1.018    0.000    1.018    0.000 {built-in method numpy.array}
+   610236    0.893    0.000    0.893    0.000 {built-in method math.cos}
+   610236    0.857    0.000    0.857    0.000 {built-in method math.sin}
+   489070    0.837    0.000    0.837    0.000 {built-in method math.atan2}
+    14933    0.169    0.000    0.699    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:24(predict_motion)
+   502219    0.698    0.000    0.698    0.000 {built-in method builtins.len}
+    23866    0.542    0.000    0.644    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:269(_to_particle_local)
+   413283    0.578    0.000    0.578    0.000 {method 'items' of 'dict' objects}
+   399350    0.532    0.000    0.532    0.000 /usr/lib/python3/dist-packages/numpy/core/fromnumeric.py:2172(_sum_dispatcher)
+    23868    0.513    0.000    0.513    0.000 {built-in method numpy.asarray}
+   373293    0.505    0.000    0.505    0.000 <frozen _collections_abc>:341(__subclasshook__)
+    44799    0.289    0.000    0.489    0.000 /usr/lib/python3.12/random.py:551(gauss)
+    20075    0.274    0.000    0.331    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:58(update_landmark)
+    14933    0.151    0.000    0.249    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:371(_evaluate_particle_weights)
+    74665    0.241    0.000    0.241    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:41(add_landmark)
+       15    0.110    0.007    0.236    0.016 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:126(feature_detector)
+    13933    0.052    0.000    0.213    0.000 /usr/lib/python3/dist-packages/numpy/core/fromnumeric.py:2322(any)
+   117152    0.163    0.000    0.163    0.000 {built-in method math.sqrt}
+       15    0.075    0.005    0.075    0.005 {method 'detectAndCompute' of 'cv2.Feature2D' objects}
+    20089    0.056    0.000    0.073    0.000 {built-in method builtins.max}
+    42475    0.071    0.000    0.071    0.000 {built-in method math.log}
+    44813    0.067    0.000    0.067    0.000 {built-in method builtins.abs}
+    44800    0.064    0.000    0.064    0.000 {method 'random' of '_random.Random' objects}
+    22338    0.056    0.000    0.056    0.000 {built-in method numpy.empty}
+      933    0.027    0.000    0.048    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:104(prune_map)
+       54    0.040    0.001    0.041    0.001 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:467(_take_subscription)
+      780    0.020    0.000    0.039    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/waitable.py:37(__add__)
+       14    0.001    0.000    0.036    0.003 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:132(normalize_weights)
+       14    0.000    0.000    0.036    0.003 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:143(get_best_particle)
+       14    0.018    0.001    0.036    0.003 {built-in method builtins.sum}
+    14933    0.035    0.000    0.035    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:120(get_map_arrays)
+    12830    0.034    0.000    0.034    0.000 {method 'tolist' of 'numpy.ndarray' objects}
+    23866    0.033    0.000    0.033    0.000 /usr/lib/python3/dist-packages/numpy/core/multiarray.py:85(empty_like)
+    24000    0.033    0.000    0.033    0.000 {built-in method builtins.round}
+    14933    0.030    0.000    0.030    0.000 {built-in method math.exp}
+    20075    0.029    0.000    0.029    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:293(<lambda>)
+    97/28    0.001    0.000    0.022    0.001 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/guard_condition.py:32(trigger)
+    13933    0.019    0.000    0.019    0.000 /usr/lib/python3/dist-packages/numpy/core/fromnumeric.py:2317(_any_dispatcher)
+    14014    0.018    0.000    0.018    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:133(<genexpr>)
+    14000    0.018    0.000    0.018    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/particlefilter.py:144(<lambda>)
+    12830    0.017    0.000    0.017    0.000 /usr/lib/python3/dist-packages/numpy/core/multiarray.py:346(where)
+      195    0.004    0.000    0.015    0.000 {method 'extend' of 'list' objects}
+       29    0.013    0.000    0.015    0.001 /opt/ros/jazzy/lib/python3.12/site-packages/cv_bridge/core.py:147(imgmsg_to_cv2)
+     1326    0.005    0.000    0.013    0.000 /usr/lib/python3.12/contextlib.py:543(_push_cm_exit)
+    41/13    0.001    0.000    0.012    0.001 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:575(handler)
+     1209    0.003    0.000    0.009    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:614(can_execute)
+       38    0.001    0.000    0.007    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform_stamped.py:93(__init__)
+     4680    0.006    0.000    0.006    0.000 {built-in method builtins.setattr}
+       62    0.001    0.000    0.006    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform.py:90(__init__)
+     1004    0.004    0.000    0.006    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/callback_groups.py:101(can_execute)
+      141    0.002    0.000    0.006    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/std_msgs/msg/_header.py:86(__init__)
+     1326    0.004    0.000    0.005    0.000 /usr/lib/python3.12/contextlib.py:548(_push_exit_callback)
+   686/18    0.007    0.000    0.005    0.000 /usr/lib/python3.12/contextlib.py:511(enter_context)
+       13    0.000    0.000    0.005    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:100(__init__)
+       14    0.003    0.000    0.005    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:123(depth_subscription)
+      120    0.002    0.000    0.004    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:114(__init__)
+      108    0.000    0.000    0.004    0.000 /usr/lib/python3.12/inspect.py:420(iscoroutinefunction)
+      519    0.002    0.000    0.004    0.000 <frozen importlib._bootstrap>:1390(_handle_fromlist)
+       54    0.001    0.000    0.004    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:559(_make_handler)
+      780    0.002    0.000    0.003    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/event_handler.py:118(get_num_entities)
+       29    0.001    0.000    0.003    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:104(__init__)
+     2193    0.003    0.000    0.003    0.000 {method 'get' of 'dict' objects}
+       15    0.000    0.000    0.003    0.000 /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:97(try_get_camera_tf)
+      780    0.003    0.000    0.003    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/event_handler.py:127(__enter__)
+       54    0.001    0.000    0.003    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:229(__init__)
+      195    0.002    0.000    0.003    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/builtin_interfaces/msg/_time.py:82(__init__)
+      108    0.001    0.000    0.003    0.000 /usr/lib/python3.12/inspect.py:384(_has_code_flag)
+       22    0.000    0.000    0.003    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/transform_listener.py:115(callback)
+       22    0.000    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/buffer.py:111(set_transform)
+    52/13    0.000    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:479(_execute)
+    53/13    0.000    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:108(await_or_execute)
+     1638    0.002    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:278(waitables)
+      112    0.001    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_vector3.py:87(__init__)
+     1521    0.002    0.000    0.002    0.000 {method '__exit__' of '_thread.lock' objects}
+     1599    0.002    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/waitable.py:26(__init__)
+       22    0.001    0.000    0.002    0.000 {function Buffer.set_transform at 0x7919a1d9d940}
+       21    0.000    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose.py:90(__init__)
+     1326    0.002    0.000    0.002    0.000 /usr/lib/python3.12/contextlib.py:471(_create_exit_wrapper)
+     1326    0.002    0.000    0.002    0.000 {method 'pop' of 'collections.deque' objects}
+       13    0.000    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_with_covariance.py:91(__init__)
+     1326    0.002    0.000    0.002    0.000 {method 'append' of 'collections.deque' objects}
+       54    0.000    0.000    0.002    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:84(__exit__)
+       13    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist_with_covariance.py:91(__init__)
+        8    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_stamped.py:90(__init__)
+       29    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/cv_bridge/core.py:103(encoding_to_dtype_with_channels)
+      272    0.001    0.000    0.001    0.000 /usr/lib/python3.12/inspect.py:299(ismethod)
+       54    0.000    0.000    0.001    0.000 /usr/lib/python3.12/inspect.py:405(_has_coroutine_mark)
+      812    0.001    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/service.py:101(handle)
+       13    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist.py:86(__init__)
+       29    0.001    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/cv_bridge/core.py:95(encoding_to_cvtype2)
+        2    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/context.py:146(on_shutdown)
+      549    0.001    0.000    0.001    0.000 {built-in method builtins.hasattr}
+        2    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/buffer.py:215(can_transform)
+      616    0.001    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:263(services)
+        1    0.000    0.000    0.001    0.001 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/buffer.py:133(lookup_transform)
+       53    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:121(set_result)
+       54    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:79(__enter__)
+       54    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:40(__init__)
+      2/1    0.000    0.000    0.001    0.001 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:308(add_node)
+      573    0.001    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/subscription.py:88(handle)
+      162    0.000    0.000    0.001    0.000 /usr/lib/python3.12/functools.py:421(_unwrap_partial)
+       54    0.000    0.000    0.001    0.000 /usr/lib/python3.12/threading.py:424(notify_all)
+      108    0.000    0.000    0.001    0.000 /usr/lib/python3.12/threading.py:299(__enter__)
+      386    0.001    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:253(subscriptions)
+       13    0.000    0.000    0.001    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf_transformations/__init__.py:745(quaternion_from_euler)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py:101(get_global_executor)
+      108    0.000    0.000    0.000    0.000 /usr/lib/python3.12/threading.py:302(__exit__)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:895(__init__)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:187(__init__)
+      108    0.000    0.000    0.000    0.000 /usr/lib/python3.12/inspect.py:371(isfunction)
+       21    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_point.py:87(__init__)
+        4    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/clock.py:212(now)
+       13    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/transforms3d/euler.py:306(euler2quat)
+       38    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_msgs/msg/_tf_message.py:83(__init__)
+       54    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:170(_set_executor)
+      248    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/builtin_interfaces/msg/_time.py:140(sec)
+       53    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:146(_schedule_or_invoke_done_callbacks)
+      259    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/callback_groups.py:83(can_execute)
+      236    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/guard_condition.py:36(handle)
+      230    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/std_msgs/msg/_header.py:145(stamp)
+      248    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/builtin_interfaces/msg/_time.py:155(nanosec)
+       54    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:218(_enter_spin)
+       54    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:225(_exit_spin)
+      229    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/std_msgs/msg/_header.py:159(frame_id)
+      108    0.000    0.000    0.000    0.000 {method '__enter__' of '_thread.RLock' objects}
+       54    0.000    0.000    0.000    0.000 /usr/lib/python3.12/threading.py:394(notify)
+       24    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/buffer.py:119(_call_new_data_callbacks)
+       39    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:348(get_nodes)
+        1    0.000    0.000    0.000    0.000 {method 'lookup_transform_core' of '_tf2.BufferCore' objects}
+        3    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/transform_listener.py:120(static_callback)
+      174    0.000    0.000    0.000    0.000 {method '__exit__' of '_thread.RLock' objects}
+       29    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/callback_groups.py:114(ending_execution)
+       54    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.lock' objects}
+        2    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_ros/buffer.py:115(set_transform_static)
+       54    0.000    0.000    0.000    0.000 /usr/lib/python3.12/inspect.py:457(iscoroutine)
+      150    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_vector3.py:148(x)
+      150    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_vector3.py:178(z)
+      145    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:182(x)
+      150    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_vector3.py:163(y)
+      145    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:197(y)
+      145    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:212(z)
+      111    0.000    0.000    0.000    0.000 {built-in method _thread.allocate_lock}
+      145    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:227(w)
+        2    0.000    0.000    0.000    0.000 {function Buffer.set_transform_static at 0x7919a1d9eb60}
+       29    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/callback_groups.py:106(beginning_execution)
+      120    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:76(Z__DEFAULT)
+      120    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:66(X__DEFAULT)
+       29    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/cv_bridge/core.py:91(cvtype2_to_dtype_with_channels)
+      120    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:71(Y__DEFAULT)
+      108    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:70(_pending)
+      120    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:81(W__DEFAULT)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf_transformations/__init__.py:776(quaternion_matrix)
+       99    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform.py:164(rotation)
+       97    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform_stamped.py:178(transform)
+       86    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform.py:150(translation)
+       78    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:268(timers)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:492(inv)
+       77    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:273(guards)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/transforms3d/affines.py:249(compose)
+       54    0.000    0.000    0.000    0.000 <string>:2(__init__)
+       83    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/builtin_interfaces/msg/_time.py:150(nanosec)
+       88    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_vector3.py:158(y)
+       29    0.000    0.000    0.000    0.000 {method 'newbyteorder' of 'numpy.dtype' objects}
+       88    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_vector3.py:143(x)
+       88    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_vector3.py:173(z)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_with_covariance.py:167(covariance)
+       77    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:258(clients)
+       83    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:177(x)
+       87    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose.py:145(position)
+       87    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:260(data)
+       83    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/builtin_interfaces/msg/_time.py:135(sec)
+       83    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:192(y)
+       83    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:222(w)
+       76    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform_stamped.py:170(child_frame_id)
+       82    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/context.py:68(handle)
+       83    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_quaternion.py:207(z)
+       80    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform.py:145(translation)
+       28    0.000    0.000    0.000    0.000 {built-in method numpy.zeros}
+       62    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform_stamped.py:183(transform)
+       66    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:901(<lambda>)
+       62    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform_stamped.py:156(header)
+       74    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/std_msgs/msg/_header.py:140(stamp)
+       73    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_with_covariance.py:148(pose)
+       63    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_msgs/msg/_tf_message.py:138(transforms)
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:250(step)
+       39    0.000    0.000    0.000    0.000 {built-in method sys.exc_info}
+       39    0.000    0.000    0.000    0.000 /usr/lib/python3.12/contextlib.py:481(__init__)
+       73    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:189(pose)
+       54    0.000    0.000    0.000    0.000 {method '_is_owned' of '_thread.RLock' objects}
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:178(header)
+       64    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform_stamped.py:151(header)
+       54    0.000    0.000    0.000    0.000 {method 'release' of '_thread.lock' objects}
+       29    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:265(data)
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:222(encoding)
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:207(width)
+       54    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/subscription.py:108(callback)
+       53    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:91(done)
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:230(is_bigendian)
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:235(is_bigendian)
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:192(height)
+       53    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:112(exception)
+       53    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:324(_complete_task)
+       54    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:236(context)
+       59    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/std_msgs/msg/_header.py:154(frame_id)
+       58    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:187(height)
+       53    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:100(result)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf_transformations/__init__.py:739(_reorder_output_quaternion)
+       52    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:55(__del__)
+        8    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/time.py:43(__init__)
+       56    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_stamped.py:159(pose)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist_with_covariance.py:167(covariance)
+       29    0.000    0.000    0.000    0.000 {built-in method numpy.ascontiguousarray}
+        2    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/guard_condition.py:21(__init__)
+       39    0.000    0.000    0.000    0.000 {method 'keys' of 'dict' objects}
+       37    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform_stamped.py:165(child_frame_id)
+       46    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_path.py:158(poses)
+        2    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/time.py:85(__add__)
+       42    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose.py:164(orientation)
+       42    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_point.py:163(y)
+       42    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_point.py:148(x)
+       44    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:217(encoding)
+       42    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_transform.py:159(rotation)
+        3    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/clock.py:184(__new__)
+       39    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:162(header)
+       42    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose.py:159(orientation)
+       38    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf2_msgs/msg/_tf_message.py:133(transforms)
+       39    0.000    0.000    0.000    0.000 /usr/lib/python3.12/contextlib.py:564(__enter__)
+       33    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_point.py:143(x)
+        4    0.000    0.000    0.000    0.000 {method 'can_transform_core' of '_tf2.BufferCore' objects}
+       24    0.000    0.000    0.000    0.000 {method 'clear' of 'list' objects}
+       33    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_point.py:158(y)
+       27    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/publisher.py:86(handle)
+       28    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/utilities.py:151(timeout_sec_to_nsec)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/signals.py:49(__init__)
+       29    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:202(width)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/lib/twodim_base.py:158(eye)
+        2    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/time.py:129(__lt__)
+       29    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:245(step)
+       25    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/callback_groups.py:89(ending_execution)
+       26    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:181(child_frame_id)
+        2    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/duration.py:63(__ne__)
+       25    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/callback_groups.py:86(beginning_execution)
+       24    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_stamped.py:145(header)
+       21    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose.py:150(position)
+       21    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_point.py:178(z)
+       16    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/time.py:62(nanoseconds)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:74(__init__)
+       21    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_point.py:173(z)
+       13    0.000    0.000    0.000    0.000 {method 'lower' of 'str' objects}
+       15    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/sensor_msgs/msg/_image.py:173(header)
+        3    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/utilities.py:32(get_default_context)
+     39/1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/event_handler.py:131(__exit__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/transforms3d/quaternions.py:101(quat2mat)
+        2    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/duration.py:58(__eq__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.12/threading.py:277(__init__)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/lib/twodim_base.py:234(diag)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:208(twist)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:167(header)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:194(pose)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:159(_commonType)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist.py:146(linear)
+        4    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/duration.py:31(__init__)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist_with_covariance.py:148(twist)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_with_covariance.py:153(pose)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist_with_covariance.py:153(twist)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:176(child_frame_id)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist.py:160(angular)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist.py:141(linear)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_with_covariance.py:162(covariance)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist.py:155(angular)
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_odometry.py:203(twist)
+        6    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/time.py:76(clock_type)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+       13    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_twist_with_covariance.py:162(covariance)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:290(executor)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3.12/weakref.py:46(__new__)
+        8    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_stamped.py:164(pose)
+        8    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/geometry_msgs/msg/_pose_stamped.py:150(header)
+        6    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/duration.py:46(nanoseconds)
+        4    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0xa43b40}
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:135(_makearray)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:140(isComplexType)
+        2    0.000    0.000    0.000    0.000 /usr/lib/python3.12/threading.py:124(RLock)
+        4    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/clock.py:200(handle)
+        4    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/clock.py:196(clock_type)
+        2    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/nav_msgs/msg/_path.py:144(header)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:153(_realType)
+        1    0.000    0.000    0.000    0.000 {built-in method rclpy._rclpy_pybind11.register_sigint_guard_condition}
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:130(get_linalg_error_extobj)
+        1    0.000    0.000    0.000    0.000 {method 'astype' of 'numpy.ndarray' objects}
+        2    0.000    0.000    0.000    0.000 {built-in method _operator.index}
+        2    0.000    0.000    0.000    0.000 {built-in method builtins.callable}
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py:283(executor)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:203(_assert_stacked_2d)
+        1    0.000    0.000    0.000    0.000 /opt/ros/jazzy/lib/python3.12/site-packages/tf_transformations/__init__.py:733(_reorder_input_quaternion)
+        1    0.000    0.000    0.000    0.000 {method '__array_prepare__' of 'numpy.ndarray' objects}
+        1    0.000    0.000    0.000    0.000 {method 'remove' of 'set' objects}
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/lib/twodim_base.py:230(_diag_dispatcher)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:209(_assert_stacked_square)
+        1    0.000    0.000    0.000    0.000 /usr/lib/python3/dist-packages/numpy/linalg/linalg.py:488(_unary_dispatcher)
+     26/0    0.000    0.000    0.000          {method 'send' of 'coroutine' objects}
+1549721/0    4.278    0.000    0.000          {built-in method builtins.next}
+     14/0    0.040    0.003    0.000          /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:171(listener_callback)
+     13/0    0.000    0.000    0.000          /home/kar1858/Slam/install/imglistener/lib/python3.12/site-packages/imglistener/imglistener.py:524(publish_odometry)
+     26/0    0.000    0.000    0.000          /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/task.py:283(_execute_coroutine_step)
+     53/0    0.001    0.000    0.000          /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:623(_wait_for_ready_callbacks)
+     26/0    0.000    0.000    0.000          /opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py:856(wait_for_ready_callbacks)
+
+
