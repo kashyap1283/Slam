@@ -241,8 +241,8 @@ class FastSlamNode(Node):
         if particle is None:
             R_2d, t_2d, _, _, inlier_count, _ = ransac_kabsch(
                 P_prev, P_curr,
-                iterations=30,  # Lower iterations since we use LO-RANSAC
-                strict_thresh=0.01,
+                iterations=20,  # Lower iterations since we use LO-RANSAC
+                strict_thresh=0.02,
                 relaxed_thresh=0.05,
                 min_kpts=self.min_keypoints,
                 min_inls=self.min_inliers
@@ -252,7 +252,7 @@ class FastSlamNode(Node):
             P_curr_local = self._to_particle_local(P_curr, particle.x, particle.y, particle.yaw)
             R_2d, t_2d, _, _, inlier_count, _ = ransac_kabsch(
                 P_prev_local, P_curr_local,
-                iterations=30,
+                iterations=20,
                 strict_thresh=0.01,
                 relaxed_thresh=0.05,
                 min_kpts=self.min_keypoints,
@@ -314,8 +314,8 @@ class FastSlamNode(Node):
                     # UPDATED: Switched from prosac_kabsch to ransac_kabsch
                     R_corr, t_corr, _, _, inlier_count, _ = ransac_kabsch(
                         P_map_global, Q_sensor_global_est, 
-                        iterations=30, 
-                        strict_thresh=0.01, 
+                        iterations=20, 
+                        strict_thresh=0.02, 
                         relaxed_thresh=0.05, 
                         min_kpts=self.min_keypoints, 
                         min_inls=self.min_inliers
@@ -405,7 +405,7 @@ class FastSlamNode(Node):
 
 # --- Global Geometry Math Functions ---
 
-def ransac_kabsch(P, Q, iterations=30, strict_thresh=0.03, relaxed_thresh=0.05, min_kpts=5, min_inls=6):
+def ransac_kabsch(P, Q, iterations=20, strict_thresh=0.02, relaxed_thresh=0.05, min_kpts=5, min_inls=6):
     best_inliers = None
     best_count = 0
     n = len(P)
@@ -413,7 +413,7 @@ def ransac_kabsch(P, Q, iterations=30, strict_thresh=0.03, relaxed_thresh=0.05, 
     if n < min_kpts: 
         return None, None, P, Q, 0, 0
 
-    # THE FIX: Create 2D slices of the points for the 2D Kabsch solver
+    
     P2 = P[:, :2]
     Q2 = Q[:, :2]
 
@@ -525,6 +525,8 @@ def pointcloud(points, pc_pub, stamp, frame_id="orb_odom"):
     pc_pub.publish(pcl2.create_cloud_xyz32(header, points.tolist() if isinstance(points, np.ndarray) else points))
 
 def publish_odometry(node, current_time, global_x, global_y, global_yaw):
+    # --- 1. Movement Throttling ---
+    # Only publish if the robot has moved a minimum distance/rotation to save bandwidth
     if hasattr(node, 'last_pub_pose'):
         last_x, last_y, last_yaw = node.last_pub_pose
         dx = global_x - last_x
@@ -537,7 +539,7 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw):
             
     node.last_pub_pose = (global_x, global_y, global_yaw)
 
-    # 1. Publish the Odometry Message
+    # --- 2. Publish the Odometry Message ---
     odom_msg = Odometry()
     odom_msg.header.stamp = current_time
     odom_msg.header.frame_id = node.odom_frame
@@ -549,18 +551,19 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw):
     odom_msg.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
     node.odom_pub.publish(odom_msg)
 
-    # 2. THIS IS THE MISSING PIECE: Publish the Transform (TF) for RViz!
+    # --- 3. Publish the Transform (TF) ---
     t_msg = TransformStamped()
     t_msg.header.stamp = current_time
-    t_msg.header.frame_id = node.odom_frame      # 'orb_odom'
-    t_msg.child_frame_id = node.base_frame       # 'base_link'
+    t_msg.header.frame_id = node.odom_frame      # e.g., 'orb_odom'
+    t_msg.child_frame_id = node.base_frame       # e.g., 'base_link'
     t_msg.transform.translation.x = float(global_x)
     t_msg.transform.translation.y = float(global_y)
     t_msg.transform.translation.z = 0.0
     t_msg.transform.rotation = odom_msg.pose.pose.orientation
     node.tf_broadcaster.sendTransform(t_msg)
 
-    # 3. Publish the Path
+    # --- 4. Append and Publish the Path ---
+    # Only add a new pose to the path if it's the first pose OR the robot moved > 0.1m
     if len(node.path_msg.poses) == 0 or math.sqrt((global_x - node.path_msg.poses[-1].pose.position.x)**2 + (global_y - node.path_msg.poses[-1].pose.position.y)**2) > 0.1:
         pose = PoseStamped()
         pose.header.stamp = current_time
@@ -569,8 +572,8 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw):
         pose.pose.position.y = float(global_y)
         pose.pose.orientation = odom_msg.pose.pose.orientation
         node.path_msg.poses.append(pose)
-
-    if node.frame_idx % 10 == 0:
+        
+        # Publish the path IMMEDIATELY every time a new pose is appended
         node.path_msg.header.stamp = current_time
         node.path_pub.publish(node.path_msg)
 
