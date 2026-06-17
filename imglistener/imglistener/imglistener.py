@@ -41,8 +41,8 @@ class FastSlamNode(Node):
                 ('base_frame', 'base_link'),
                 ('camera_frame', 'kinect_depth'),
                 ('max_missed_frames', 3),
-                ('num_particles', 1000),
-                ('max_map_landmarks', 500),
+                ('num_particles', 200),
+                ('max_map_landmarks', 1000),
                 ('min_depth_mm', 50),
                 ('max_depth_mm', 5000)
             ]
@@ -91,7 +91,7 @@ class FastSlamNode(Node):
         self.prev_points_base = None
 
         self.pf = PF(num_particles=self.num_particles, x=0.0, y=0.0, yaw=0.0)
-        self.orb = cv2.ORB_create(nfeatures=800)
+        self.orb = cv2.ORB_create(nfeatures=2000 , fastThreshold = 15)
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
     def try_get_camera_tf(self):
@@ -143,6 +143,20 @@ class FastSlamNode(Node):
             depth = distance / 1000.0 
             
             points.append([depth * (x - self.cx) / self.focal_length, depth * (y - self.cy) / self.focal_length, depth])
+
+
+        debug_frame = frame.copy()
+        cv2.drawKeypoints(
+            debug_frame, filtered_kp, debug_frame,
+            color=(0, 255, 0),
+            flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+        )
+
+        # Label keypoint count
+        img2 = cv2.drawKeypoints(frame,kp,None,color=(0,255,0), flags=0)
+        cv2.imshow("ORB Feature Detector", img2)
+        cv2.waitKey(1)  
+        # --------------------------
             
         return filtered_kp, np.array(filtered_des), np.array(points)
 
@@ -186,73 +200,95 @@ class FastSlamNode(Node):
 
         self.frame_idx += 1
 
-        for particle in self.pf.particles:
-            d_fwd, d_lat, d_yaw = self._estimate_frame_motion(des, points_base, particle)
+        matched_P_prev = None
+        matched_P_curr = None
+        
+        if self.prev_des is not None and des is not None:
+            matches = self.bf.match(self.prev_des, des)
+            matches = [m for m in matches if m.distance < 60]
+            matches.sort(key=lambda m: m.distance)
+            
+            if len(matches) >= self.min_keypoints:
+                matched_P_prev = np.asarray([self.prev_points_base[m.queryIdx] for m in matches], dtype=np.float64)
+                matched_P_curr = np.asarray([points_base[m.trainIdx] for m in matches], dtype=np.float64)
 
+        d_fwd, d_lat, d_yaw = self._estimate_frame_motion(matched_P_prev, matched_P_curr, particle=None)
+
+        # --- 1. THE STANDSTILL CONDITION ---
+        moved_enough = (abs(d_fwd) > 0.005 or abs(d_lat) > 0.005 or abs(d_yaw) > 0.01)
+
+        if moved_enough:
+            # Moving: Add proportional noise PLUS a baseline (0.02) to force them to grow apart
             sigmas = {
-                'forward': 0.05 * abs(d_fwd) + 0.005,
-                'lateral': 0.05 * abs(d_lat) + 0.005,
-                'yaw': 0.08 * abs(d_yaw) + 0.005
+                'forward': 0.1 * abs(d_fwd) + 0.02,
+                'lateral': 0.1 * abs(d_lat) + 0.02,
+                'yaw': 0.1 * abs(d_yaw) + 0.05
+            }
+        else:
+            # Standing Still: Zero noise. (Note the correct dictionary syntax {})
+            sigmas = {
+                'forward': 0.0,
+                'lateral': 0.0,
+                'yaw': 0.0
             }
 
+        # --- 2. PARTICLE LOOP ---
+        for particle in self.pf.particles:
+            # Step A: Predict Motion
             particle.predict_motion(d_fwd, d_lat, d_yaw, sigmas)
 
-            matched_curr, matched_map, innovations, s_matrices = self._process_particle_data_association(
-                particle, des, points_base, points_cam
-            )
-
-            self._evaluate_particle_weights(particle, innovations, s_matrices)
-            self._extend_particle_landmark_map(particle, points_cam, des, matched_curr, points_base)
+            # Step B: Update Map and Weights 
+            if moved_enough:
+                matched_curr, matched_map, innovations, s_matrices = self._process_particle_data_association(
+                    particle, des, points_base, points_cam
+                )
+                self._evaluate_particle_weights(particle, innovations, s_matrices)
+                self._extend_particle_landmark_map(particle, points_cam, des, matched_curr, points_base)
 
         self.prev_des = des
         self.prev_points_base = points_base
 
-        self.pf.normalize_weights()
+        # --- 3. RESAMPLE (NATURAL SELECTION) ---
+        if moved_enough:
+            self.pf.normalize_weights()
+
+        # --- 4. BEST PARTICLE PRODUCES THE PATH ---
         best_particle = self.pf.get_best_particle()
 
+        # This publishes the Green Line and TF using ONLY the best particle's coordinates
         publish_odometry(self, self.current_time, best_particle.x, best_particle.y, best_particle.yaw)
+        
+        # This publishes the Orange Arrows showing the whole cloud "growing apart"
+        publish_pf_particles_markers(self, self.current_time)
 
         if self.frame_idx % 15 == 0:
             if best_particle.num_landmarks > 0:
                 best_map_pts = best_particle.map_pts[:best_particle.num_landmarks]
                 pointcloud(best_map_pts, self.current_pc_pub, self.current_time, self.odom_frame)
-            publish_pf_particles_markers(self, self.current_time)
+            
 
-    def _estimate_frame_motion(self, des, points_base, particle=None):
+    def _estimate_frame_motion(self, matched_P_prev, matched_P_curr, particle=None):
         d_fwd, d_lat, d_yaw = 0.0, 0.0, 0.0
-        if self.prev_des is None or self.prev_points_base is None or des is None:
+        
+        if matched_P_prev is None or len(matched_P_prev) < self.min_keypoints:
             return d_fwd, d_lat, d_yaw
-
-        matches = self.bf.match(self.prev_des, des)
-        matches = [m for m in matches if m.distance < 60]
-        matches.sort(key=lambda m: m.distance)
-
-        if len(matches) < self.min_keypoints:
-            return d_fwd, d_lat, d_yaw
-
-        P_prev, P_curr = [], []
-        for m in matches:
-            P_prev.append(self.prev_points_base[m.queryIdx])
-            P_curr.append(points_base[m.trainIdx])
-
-        P_prev = np.asarray(P_prev, dtype=np.float64)
-        P_curr = np.asarray(P_curr, dtype=np.float64)
 
         if particle is None:
             R_2d, t_2d, _, _, inlier_count, _ = ransac_kabsch(
-                P_prev, P_curr,
-                iterations=20,  # Lower iterations since we use LO-RANSAC
+                matched_P_prev, matched_P_curr,
+                iterations=100, 
                 strict_thresh=0.02,
                 relaxed_thresh=0.05,
                 min_kpts=self.min_keypoints,
                 min_inls=self.min_inliers
             )
         else:
-            P_prev_local = self._to_particle_local(P_prev, particle.x, particle.y, particle.yaw)
-            P_curr_local = self._to_particle_local(P_curr, particle.x, particle.y, particle.yaw)
+            # Transform to the particle's unique local frame before running RANSAC
+            P_prev_local = self._to_particle_local(matched_P_prev, particle.x, particle.y, particle.yaw)
+            P_curr_local = self._to_particle_local(matched_P_curr, particle.x, particle.y, particle.yaw)
             R_2d, t_2d, _, _, inlier_count, _ = ransac_kabsch(
                 P_prev_local, P_curr_local,
-                iterations=20,
+                iterations=100,
                 strict_thresh=0.01,
                 relaxed_thresh=0.05,
                 min_kpts=self.min_keypoints,
@@ -264,7 +300,6 @@ class FastSlamNode(Node):
             d_yaw = math.atan2(R_2d[1, 0], R_2d[0, 0])
 
         return d_fwd, d_lat, d_yaw
-
 
     def _to_particle_local(self, pts, x, y, yaw):
         c, s = math.cos(-yaw), math.sin(-yaw)
@@ -295,37 +330,7 @@ class FastSlamNode(Node):
             if len(valid_matches) > 0:
                 map_indices = [vis_indices[m.queryIdx] for m in valid_matches]
                 train_indices = [m.trainIdx for m in valid_matches]
-
-                P_map_global = map_pts_np[map_indices]
-                pts_local = points_base[train_indices]
-
-                c_p, s_p = math.cos(particle.yaw), math.sin(particle.yaw)
-                g_x_est = pts_local[:, 0] * c_p - pts_local[:, 1] * s_p + particle.x
-                g_y_est = pts_local[:, 0] * s_p + pts_local[:, 1] * c_p + particle.y
-                
-                Q_sensor_global_est = np.empty((len(g_x_est), 3), dtype=np.float64)
-                Q_sensor_global_est[:, 0] = g_x_est
-                Q_sensor_global_est[:, 1] = g_y_est
-                Q_sensor_global_est[:, 2] = pts_local[:, 2]
-
                 match_pairs = list(zip(map_indices, train_indices))
-
-                if len(P_map_global) >= self.min_keypoints:
-                    # UPDATED: Switched from prosac_kabsch to ransac_kabsch
-                    R_corr, t_corr, _, _, inlier_count, _ = ransac_kabsch(
-                        P_map_global, Q_sensor_global_est, 
-                        iterations=20, 
-                        strict_thresh=0.02, 
-                        relaxed_thresh=0.05, 
-                        min_kpts=self.min_keypoints, 
-                        min_inls=self.min_inliers
-                    )
-                    if R_corr is not None and inlier_count >= self.min_inliers:
-                        corr_yaw = math.atan2(R_corr[1, 0], R_corr[0, 0])
-                        particle.x += t_corr[0]
-                        particle.y += t_corr[1]
-                        particle.yaw = wrap_angle(particle.yaw + corr_yaw)
-
                 cos_yaw, sin_yaw = math.cos(-particle.yaw), math.sin(-particle.yaw)
                 
                 R00, R01, R02 = self.base_to_kinect_R[0, 0], self.base_to_kinect_R[0, 1], self.base_to_kinect_R[0, 2]
@@ -337,6 +342,7 @@ class FastSlamNode(Node):
                     pt_w_y = map_pts_np[map_idx, 1]
                     pt_w_z = map_pts_np[map_idx, 2]
                     
+                    # Transform global map point to camera frame based on THIS particle's pose
                     dx, dy = pt_w_x - particle.x, pt_w_y - particle.y
                     base_x = dx * cos_yaw - dy * sin_yaw
                     base_y = dx * sin_yaw + dy * cos_yaw
@@ -352,8 +358,12 @@ class FastSlamNode(Node):
 
                     z0, z1 = points_cam[train_idx][0], points_cam[train_idx][2]
                     r00, r01, r10, r11 = self._compute_feature_covariance(cam_x, cam_z, particle.yaw)
+
+                    v0 = z0 - cam_x
+                    v1 = z1 - cam_z 
                     
-                    v, S = particle.update_landmark(map_idx, z0, z1, r00, r01, r10, r11, 0.001, 0.001, particle.yaw)
+                    # Mathematical EKF Update
+                    v, S = particle.update_landmark(map_idx, v0, v1, r00, r01, r10, r11, 0.001, 0.001, particle.yaw)
                     if v is not None:
                         innovations.append(v)
                         s_matrices.append(S)
@@ -367,7 +377,6 @@ class FastSlamNode(Node):
                 particle.map_missed[map_idx] += 1
 
         return matched_current_indices, matched_map_indices, innovations, s_matrices
-
     def _evaluate_particle_weights(self, particle, innovations, s_matrices):
         log_likelihood = 0.0
         log_2pi = 1.8378770664093453 
@@ -405,7 +414,7 @@ class FastSlamNode(Node):
 
 # --- Global Geometry Math Functions ---
 
-def ransac_kabsch(P, Q, iterations=20, strict_thresh=0.02, relaxed_thresh=0.05, min_kpts=5, min_inls=6):
+def ransac_kabsch(P, Q, iterations, strict_thresh, relaxed_thresh, min_kpts, min_inls):
     best_inliers = None
     best_count = 0
     n = len(P)
@@ -418,27 +427,17 @@ def ransac_kabsch(P, Q, iterations=20, strict_thresh=0.02, relaxed_thresh=0.05, 
     Q2 = Q[:, :2]
 
     for _ in range(iterations):
-        # 1. Sample 3 points
         idx = random.sample(range(n), 3)
-        
-        # Pass the 2D points into kabsch
         R_hyp, t_hyp = kabsch_2d(P2[idx], Q2[idx])
-        
         errors = calculate_errors(P, Q, R_hyp, t_hyp)
         
-        # 3. Test with STRICT threshold
         inliers = errors < strict_thresh
         inlier_count = np.sum(inliers)
 
-        # 4. Local Optimization (LO-RANSAC feature)
         if inlier_count > best_count and inlier_count >= 4: 
-            # Recalculate Kabsch using ALL strict inliers (using 2D points)
             R_refined, t_refined = kabsch_2d(P2[inliers], Q2[inliers])
-            
-            # Re-evaluate all points using the refined model
             refined_errors = calculate_errors(P, Q, R_refined, t_refined)
             
-            # Test again with RELAXED threshold to grab edge points
             refined_inliers = refined_errors < relaxed_thresh
             refined_count = np.sum(refined_inliers)
             
@@ -446,10 +445,9 @@ def ransac_kabsch(P, Q, iterations=20, strict_thresh=0.02, relaxed_thresh=0.05, 
                 best_count = refined_count
                 best_inliers = refined_inliers
                 
-            if best_count/float(n) > 0.85 :
+            if best_count/float(n) > 0.87 :
                 break
 
-        # Fallback if we beat the score but didn't have enough points to refine
         elif inlier_count > best_count:
             best_count = inlier_count
             best_inliers = inliers
@@ -457,13 +455,11 @@ def ransac_kabsch(P, Q, iterations=20, strict_thresh=0.02, relaxed_thresh=0.05, 
     if best_inliers is None or np.sum(best_inliers) < min_inls:
         return None, None, P, Q, 0, 0
 
-    # Final polish on the absolute best set (using 2D points)
     R, t = kabsch_2d(P2[best_inliers], Q2[best_inliers])
     
     inlier_count = np.sum(best_inliers)
     outlier_count = n - inlier_count
 
-    # Return the original 3D points so the rest of the slam node works
     return R, t, P[best_inliers], Q[best_inliers], int(inlier_count), int(outlier_count)
 
 def kabsch_2d(P2, Q2):
@@ -525,21 +521,10 @@ def pointcloud(points, pc_pub, stamp, frame_id="orb_odom"):
     pc_pub.publish(pcl2.create_cloud_xyz32(header, points.tolist() if isinstance(points, np.ndarray) else points))
 
 def publish_odometry(node, current_time, global_x, global_y, global_yaw):
-    # --- 1. Movement Throttling ---
-    # Only publish if the robot has moved a minimum distance/rotation to save bandwidth
-    if hasattr(node, 'last_pub_pose'):
-        last_x, last_y, last_yaw = node.last_pub_pose
-        dx = global_x - last_x
-        dy = global_y - last_y
-        
-        dyaw = abs(math.atan2(math.sin(global_yaw - last_yaw), math.cos(global_yaw - last_yaw)))
-        
-        if (dx*dx + dy*dy) < 0.000025 and dyaw < 0.01:
-            return 
-            
+    # Removed the movement throttling block so it publishes every time it is called.
     node.last_pub_pose = (global_x, global_y, global_yaw)
 
-    # --- 2. Publish the Odometry Message ---
+    # --- 1. Publish the Odometry Message ---
     odom_msg = Odometry()
     odom_msg.header.stamp = current_time
     odom_msg.header.frame_id = node.odom_frame
@@ -551,20 +536,19 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw):
     odom_msg.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
     node.odom_pub.publish(odom_msg)
 
-    # --- 3. Publish the Transform (TF) ---
+    # --- 2. Publish the Transform (TF) ---
     t_msg = TransformStamped()
     t_msg.header.stamp = current_time
-    t_msg.header.frame_id = node.odom_frame      # e.g., 'orb_odom'
-    t_msg.child_frame_id = node.base_frame       # e.g., 'base_link'
+    t_msg.header.frame_id = node.odom_frame      
+    t_msg.child_frame_id = node.base_frame       
     t_msg.transform.translation.x = float(global_x)
     t_msg.transform.translation.y = float(global_y)
     t_msg.transform.translation.z = 0.0
     t_msg.transform.rotation = odom_msg.pose.pose.orientation
     node.tf_broadcaster.sendTransform(t_msg)
-
-    # --- 4. Append and Publish the Path ---
-    # Only add a new pose to the path if it's the first pose OR the robot moved > 0.1m
-    if len(node.path_msg.poses) == 0 or math.sqrt((global_x - node.path_msg.poses[-1].pose.position.x)**2 + (global_y - node.path_msg.poses[-1].pose.position.y)**2) > 0.1:
+    
+    # --- 3. Append and Publish the Path ---
+    if len(node.path_msg.poses) == 0 or math.sqrt((global_x - node.path_msg.poses[-1].pose.position.x)**2 + (global_y - node.path_msg.poses[-1].pose.position.y)**2) > 0.01:
         pose = PoseStamped()
         pose.header.stamp = current_time
         pose.header.frame_id = node.odom_frame
@@ -573,9 +557,9 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw):
         pose.pose.orientation = odom_msg.pose.pose.orientation
         node.path_msg.poses.append(pose)
         
-        # Publish the path IMMEDIATELY every time a new pose is appended
-        node.path_msg.header.stamp = current_time
-        node.path_pub.publish(node.path_msg)
+    node.path_msg.header.stamp = current_time
+    node.path_pub.publish(node.path_msg)
+
 
 def publish_pf_particles_markers(node, current_time):
     marker = Marker()
@@ -589,6 +573,7 @@ def publish_pf_particles_markers(node, current_time):
     marker.scale.x = 0.03  
     base_color = ColorRGBA(r=1.0, g=0.5, b=0.1, a=0.8)
 
+    # Grab the top 50 particles to draw
     top_particles = sorted(node.pf.particles, key=lambda p: p.weight, reverse=True)[:50]
 
     for particle in top_particles:
@@ -602,11 +587,16 @@ def publish_pf_particles_markers(node, current_time):
         marker.points.append(p_end)
         marker.colors.append(base_color)
         marker.colors.append(base_color)
+        
+    marker_array = MarkerArray()
+    marker_array.markers.append(marker)
+    
+    node.pf_particles_marker_pub.publish(marker_array)
 
 def main():
     rclpy.init()
     node = FastSlamNode()
-    cProfile.runctx('rclpy.spin(node)', globals(), locals(), 'fastslam.prof_RANSAC2')
+    cProfile.runctx('rclpy.spin(node)', globals(), locals(), 'fastslam.prof_RANSAC2000')
     
     node.destroy_node()
     rclpy.shutdown()
