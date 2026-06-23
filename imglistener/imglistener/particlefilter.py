@@ -5,7 +5,6 @@ import random
 class Particle:
     """Represents a single robot hypothesis using pre-allocated flat arrays for extreme performance."""
     
-    # Using slots prevents python from spawning thousands of heavy __dict__ objects
     __slots__ = [
         'weight', 'x', 'y', 'yaw', 
         'max_landmarks', 'num_landmarks', 
@@ -19,7 +18,7 @@ class Particle:
         self.y = y
         self.yaw = yaw
         
-        self.max_landmarks = 500
+        self.max_landmarks = 1000  # Matched to your node's max parameter
         self.num_landmarks = 0
         
         self.map_pts = np.zeros((self.max_landmarks, 3), dtype=np.float64)
@@ -101,7 +100,9 @@ class Particle:
         return (z0, z1), (s00, s01, s10, s11)
 
     def prune_map(self, max_missed_frames):
-        if self.num_landmarks == 0: return
+        """Removes bad landmarks and explicitly shrinks the arrays to update RViz."""
+        if self.num_landmarks == 0: 
+            return
         
         keep_mask = self.map_missed[:self.num_landmarks] < max_missed_frames
         keep_count = np.sum(keep_mask)

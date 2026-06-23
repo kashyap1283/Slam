@@ -14,7 +14,7 @@ from cv_bridge import CvBridge
 
 from geometry_msgs.msg import Quaternion, TransformStamped, PoseStamped, Point
 from nav_msgs.msg import Odometry, Path
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import Image, PointCloud2, Imu
 from visualization_msgs.msg import Marker, MarkerArray
 
 from tf2_ros import TransformBroadcaster, TransformListener, Buffer
@@ -26,7 +26,7 @@ import cProfile
 
 class FastSlamNode(Node):
     def __init__(self):
-        super().__init__('image_subscriber')
+        super().__init__('fastslam_node')
         self.bridge = CvBridge()
 
         self.declare_parameters(
@@ -34,6 +34,7 @@ class FastSlamNode(Node):
             parameters=[
                 ('min_keypoints', 5),
                 ('min_inliers', 6),
+                ('visual_inlier_threshold', 30),
                 ('camera_cx', 318.525),
                 ('camera_cy', 241.181),
                 ('camera_f', 526.61),
@@ -41,7 +42,7 @@ class FastSlamNode(Node):
                 ('base_frame', 'base_link'),
                 ('camera_frame', 'kinect_depth'),
                 ('max_missed_frames', 3),
-                ('num_particles', 200),
+                ('num_particles', 500),
                 ('max_map_landmarks', 1000),
                 ('min_depth_mm', 50),
                 ('max_depth_mm', 5000)
@@ -50,6 +51,7 @@ class FastSlamNode(Node):
 
         self.min_keypoints = self.get_parameter('min_keypoints').value
         self.min_inliers = self.get_parameter('min_inliers').value
+        self.visual_inlier_threshold = self.get_parameter('visual_inlier_threshold').value
         self.cx = self.get_parameter('camera_cx').value
         self.cy = self.get_parameter('camera_cy').value
         self.focal_length = self.get_parameter('camera_f').value
@@ -62,14 +64,19 @@ class FastSlamNode(Node):
         self.min_depth_mm = self.get_parameter('min_depth_mm').value
         self.max_depth_mm = self.get_parameter('max_depth_mm').value
 
+        # --- Subscriptions ---
         self.subscription = self.create_subscription(Image, '/serf01/nav_rgbd_1/rgb/image_raw', self.listener_callback, 10)
         self.depth_sub = self.create_subscription(Image, '/serf01/nav_rgbd_1/depth/image_raw', self.depth_subscription, 10)
+        self.wheel_odom_sub = self.create_subscription(Odometry, '/serf01/odometry/wheel', self.wheel_callback, 10)
+        self.imu_sub = self.create_subscription(Imu, '/serf01/odometry/imu', self.imu_callback, 10)
 
+        # --- Publishers ---
         self.current_pc_pub = self.create_publisher(PointCloud2, '/global_cloud', 10)
         self.odom_pub = self.create_publisher(Odometry, '/serf01/odometry/project_slam', 10)
         self.path_pub = self.create_publisher(Path, '/orb_path', 10)
         self.pf_particles_marker_pub = self.create_publisher(MarkerArray, '/pf_particles_marker', 10)
 
+        # --- Transforms ---
         self.tf_broadcaster = TransformBroadcaster(self)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=False)
@@ -81,18 +88,37 @@ class FastSlamNode(Node):
         self.base_to_kinect_t = None
         self.static_tf_ready = False
 
+        # --- State Variables ---
         self.path_msg = Path()
         self.path_msg.header.frame_id = self.odom_frame
         self.depth_image = None
         self.current_time = None
+        self.prev_time_sec = None
         self.frame_idx = 0
         
+        # Omnidirectional Wheel/IMU trackers
+        self.latest_v_x = 0.0
+        self.latest_v_y = 0.0
+        self.latest_w = 0.0
+
         self.prev_des = None
         self.prev_points_base = None
 
+        # which sensor we are using right now
+        # True = camera, False = wheel + imu
+        self.use_camera = True
+
+        # --- SLAM Objects ---
         self.pf = PF(num_particles=self.num_particles, x=0.0, y=0.0, yaw=0.0)
-        self.orb = cv2.ORB_create(nfeatures=2000 , fastThreshold = 15)
+        self.orb = cv2.ORB_create(nfeatures=2000, fastThreshold=15)
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+    def wheel_callback(self, msg):
+        self.latest_v_x = msg.twist.twist.linear.x
+        self.latest_v_y = msg.twist.twist.linear.y
+
+    def imu_callback(self, msg):
+        self.latest_w = msg.angular_velocity.z
 
     def try_get_camera_tf(self):
         if self.static_tf_ready: 
@@ -144,7 +170,6 @@ class FastSlamNode(Node):
             
             points.append([depth * (x - self.cx) / self.focal_length, depth * (y - self.cy) / self.focal_length, depth])
 
-
         debug_frame = frame.copy()
         cv2.drawKeypoints(
             debug_frame, filtered_kp, debug_frame,
@@ -152,11 +177,9 @@ class FastSlamNode(Node):
             flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
         )
 
-        # Label keypoint count
-        img2 = cv2.drawKeypoints(frame,kp,None,color=(0,255,0), flags=0)
+        img2 = cv2.drawKeypoints(frame, kp, None, color=(0,255,0), flags=0)
         cv2.imshow("ORB Feature Detector", img2)
         cv2.waitKey(1)  
-        # --------------------------
             
         return filtered_kp, np.array(filtered_des), np.array(points)
 
@@ -184,8 +207,22 @@ class FastSlamNode(Node):
 
     def listener_callback(self, msg):
         self.current_time = msg.header.stamp
+        current_time_sec = self.current_time.sec + (self.current_time.nanosec * 1e-9)
+
         if not self.try_get_camera_tf() or self.depth_image is None:
             return
+
+        if self.prev_time_sec is None:
+            self.prev_time_sec = current_time_sec
+            frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+            kp, des, points_cam = self.feature_detector(frame, self.depth_image)
+            self.prev_des = des
+            if len(points_cam) > 0:
+                self.prev_points_base = points_cam @ self.kinect_to_base_R.T + self.kinect_to_base_t
+            return
+
+        dt = current_time_sec - self.prev_time_sec
+        self.prev_time_sec = current_time_sec
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         kp, des, points_cam = self.feature_detector(frame, self.depth_image)
@@ -199,9 +236,7 @@ class FastSlamNode(Node):
             points_base = np.empty((0, 3), dtype=np.float64)
 
         self.frame_idx += 1
-
-        matched_P_prev = None
-        matched_P_curr = None
+        matched_P_prev, matched_P_curr = None, None
         
         if self.prev_des is not None and des is not None:
             matches = self.bf.match(self.prev_des, des)
@@ -212,33 +247,57 @@ class FastSlamNode(Node):
                 matched_P_prev = np.asarray([self.prev_points_base[m.queryIdx] for m in matches], dtype=np.float64)
                 matched_P_curr = np.asarray([points_base[m.trainIdx] for m in matches], dtype=np.float64)
 
-        d_fwd, d_lat, d_yaw = self._estimate_frame_motion(matched_P_prev, matched_P_curr, particle=None)
+        # 1. Evaluate Visual Motion
+        vis_d_fwd, vis_d_lat, vis_d_yaw, inlier_count = self._estimate_frame_motion(matched_P_prev, matched_P_curr, particle=None)
 
-        # --- 1. THE STANDSTILL CONDITION ---
+        # 2. Evaluate Wheel/IMU Motion (Supporting Omnidirectional Y velocity)
+        odom_d_fwd = self.latest_v_x * dt
+        odom_d_lat = self.latest_v_y * dt  
+        odom_d_yaw = self.latest_w * dt
+
+        # 3. Decide which sensor to use
+        # if we have enough inliers, trust the camera
+        # otherwise fall back to wheel + imu
+        if inlier_count >= self.visual_inlier_threshold:
+            # camera is good, use it
+            d_fwd = vis_d_fwd
+            d_lat = vis_d_lat
+            d_yaw = vis_d_yaw
+            perform_visual_update = True
+            self.use_camera = True
+        else:
+            # not enough inliers, use wheel + imu
+            d_fwd = odom_d_fwd
+            d_lat = odom_d_lat
+            d_yaw = odom_d_yaw
+            perform_visual_update = False
+            self.use_camera = False
+
         moved_enough = (abs(d_fwd) > 0.005 or abs(d_lat) > 0.005 or abs(d_yaw) > 0.01)
 
         if moved_enough:
-            # Moving: Add proportional noise PLUS a baseline (0.02) to force them to grow apart
-            sigmas = {
-                'forward': 0.1 * abs(d_fwd) + 0.02,
-                'lateral': 0.1 * abs(d_lat) + 0.02,
-                'yaw': 0.1 * abs(d_yaw) + 0.05
-            }
+            if perform_visual_update:
+                sigmas = {
+                    'forward': 0.1 * abs(d_fwd) + 0.02,
+                    'lateral': 0.1 * abs(d_lat) + 0.02,
+                    'yaw': 0.1 * abs(d_yaw) + 0.05
+                }
+            else:
+                sigmas = {
+                    'forward': 0.05 * abs(d_fwd) + 0.01,
+                    'lateral': 0.02 * abs(d_lat) + 0.01,
+                    'yaw': 0.05 * abs(d_yaw) + 0.02
+                }
         else:
-            # Standing Still: Zero noise. (Note the correct dictionary syntax {})
-            sigmas = {
-                'forward': 0.0,
-                'lateral': 0.0,
-                'yaw': 0.0
-            }
+            sigmas = {'forward': 0.0, 'lateral': 0.0, 'yaw': 0.0}
 
-        # --- 2. PARTICLE LOOP ---
+        # 4. Particle Loop
         for particle in self.pf.particles:
-            # Step A: Predict Motion
+            # Prediction
             particle.predict_motion(d_fwd, d_lat, d_yaw, sigmas)
 
-            # Step B: Update Map and Weights 
-            if moved_enough:
+            # Update (Only if visual tracking is good)
+            if perform_visual_update and moved_enough:
                 matched_curr, matched_map, innovations, s_matrices = self._process_particle_data_association(
                     particle, des, points_base, points_cam
                 )
@@ -248,33 +307,30 @@ class FastSlamNode(Node):
         self.prev_des = des
         self.prev_points_base = points_base
 
-        # --- 3. RESAMPLE (NATURAL SELECTION) ---
-        if moved_enough:
+        # 5. Normalization
+        if perform_visual_update and moved_enough:
             self.pf.normalize_weights()
 
-        # --- 4. BEST PARTICLE PRODUCES THE PATH ---
+        # 6. Extract Best Particle & Publish
         best_particle = self.pf.get_best_particle()
 
-        # This publishes the Green Line and TF using ONLY the best particle's coordinates
         publish_odometry(self, self.current_time, best_particle.x, best_particle.y, best_particle.yaw)
-        
-        # This publishes the Orange Arrows showing the whole cloud "growing apart"
         publish_pf_particles_markers(self, self.current_time)
 
-        if self.frame_idx % 15 == 0:
-            if best_particle.num_landmarks > 0:
-                best_map_pts = best_particle.map_pts[:best_particle.num_landmarks]
-                pointcloud(best_map_pts, self.current_pc_pub, self.current_time, self.odom_frame)
-            
+        if best_particle.num_landmarks > 0:
+            # Because of the new prune_map function, this slice dynamically shrinks!
+            best_map_pts = best_particle.map_pts[:best_particle.num_landmarks]
+            pointcloud(best_map_pts, self.current_pc_pub, self.current_time, self.odom_frame)
 
     def _estimate_frame_motion(self, matched_P_prev, matched_P_curr, particle=None):
         d_fwd, d_lat, d_yaw = 0.0, 0.0, 0.0
+        inlier_count = 0 
         
         if matched_P_prev is None or len(matched_P_prev) < self.min_keypoints:
-            return d_fwd, d_lat, d_yaw
+            return d_fwd, d_lat, d_yaw, inlier_count
 
         if particle is None:
-            R_2d, t_2d, _, _, inlier_count, _ = ransac_kabsch(
+            R_2d, t_2d, _, _, inlier_count_out, _ = ransac_kabsch(
                 matched_P_prev, matched_P_curr,
                 iterations=100, 
                 strict_thresh=0.02,
@@ -283,10 +339,9 @@ class FastSlamNode(Node):
                 min_inls=self.min_inliers
             )
         else:
-            # Transform to the particle's unique local frame before running RANSAC
             P_prev_local = self._to_particle_local(matched_P_prev, particle.x, particle.y, particle.yaw)
             P_curr_local = self._to_particle_local(matched_P_curr, particle.x, particle.y, particle.yaw)
-            R_2d, t_2d, _, _, inlier_count, _ = ransac_kabsch(
+            R_2d, t_2d, _, _, inlier_count_out, _ = ransac_kabsch(
                 P_prev_local, P_curr_local,
                 iterations=100,
                 strict_thresh=0.01,
@@ -295,11 +350,12 @@ class FastSlamNode(Node):
                 min_inls=self.min_inliers
             )
 
-        if R_2d is not None and inlier_count >= self.min_inliers:
+        if R_2d is not None and inlier_count_out >= self.min_inliers:
             d_fwd, d_lat = t_2d[0], t_2d[1]
             d_yaw = math.atan2(R_2d[1, 0], R_2d[0, 0])
+            inlier_count = inlier_count_out
 
-        return d_fwd, d_lat, d_yaw
+        return d_fwd, d_lat, d_yaw, inlier_count
 
     def _to_particle_local(self, pts, x, y, yaw):
         c, s = math.cos(-yaw), math.sin(-yaw)
@@ -317,7 +373,6 @@ class FastSlamNode(Node):
         matched_map_indices = set()
 
         map_pts_np, map_des_np = particle.get_map_arrays()
-        
         vis_indices = get_visible_landmarks(map_pts_np, particle.x, particle.y, particle.yaw, self.base_to_kinect_R_T, self.base_to_kinect_t, self.cx, self.cy, self.focal_length)
         
         if len(vis_indices) > 0 and des is not None and len(map_des_np) > 0:
@@ -342,7 +397,6 @@ class FastSlamNode(Node):
                     pt_w_y = map_pts_np[map_idx, 1]
                     pt_w_z = map_pts_np[map_idx, 2]
                     
-                    # Transform global map point to camera frame based on THIS particle's pose
                     dx, dy = pt_w_x - particle.x, pt_w_y - particle.y
                     base_x = dx * cos_yaw - dy * sin_yaw
                     base_y = dx * sin_yaw + dy * cos_yaw
@@ -362,7 +416,6 @@ class FastSlamNode(Node):
                     v0 = z0 - cam_x
                     v1 = z1 - cam_z 
                     
-                    # Mathematical EKF Update
                     v, S = particle.update_landmark(map_idx, v0, v1, r00, r01, r10, r11, 0.001, 0.001, particle.yaw)
                     if v is not None:
                         innovations.append(v)
@@ -377,6 +430,7 @@ class FastSlamNode(Node):
                 particle.map_missed[map_idx] += 1
 
         return matched_current_indices, matched_map_indices, innovations, s_matrices
+
     def _evaluate_particle_weights(self, particle, innovations, s_matrices):
         log_likelihood = 0.0
         log_2pi = 1.8378770664093453 
@@ -418,11 +472,9 @@ def ransac_kabsch(P, Q, iterations, strict_thresh, relaxed_thresh, min_kpts, min
     best_inliers = None
     best_count = 0
     n = len(P)
-    
     if n < min_kpts: 
         return None, None, P, Q, 0, 0
 
-    
     P2 = P[:, :2]
     Q2 = Q[:, :2]
 
@@ -445,7 +497,7 @@ def ransac_kabsch(P, Q, iterations, strict_thresh, relaxed_thresh, min_kpts, min
                 best_count = refined_count
                 best_inliers = refined_inliers
                 
-            if best_count/float(n) > 0.87 :
+            if best_count/float(n) > 0.90 :
                 break
 
         elif inlier_count > best_count:
@@ -456,10 +508,8 @@ def ransac_kabsch(P, Q, iterations, strict_thresh, relaxed_thresh, min_kpts, min
         return None, None, P, Q, 0, 0
 
     R, t = kabsch_2d(P2[best_inliers], Q2[best_inliers])
-    
     inlier_count = np.sum(best_inliers)
     outlier_count = n - inlier_count
-
     return R, t, P[best_inliers], Q[best_inliers], int(inlier_count), int(outlier_count)
 
 def kabsch_2d(P2, Q2):
@@ -521,10 +571,8 @@ def pointcloud(points, pc_pub, stamp, frame_id="orb_odom"):
     pc_pub.publish(pcl2.create_cloud_xyz32(header, points.tolist() if isinstance(points, np.ndarray) else points))
 
 def publish_odometry(node, current_time, global_x, global_y, global_yaw):
-    # Removed the movement throttling block so it publishes every time it is called.
     node.last_pub_pose = (global_x, global_y, global_yaw)
 
-    # --- 1. Publish the Odometry Message ---
     odom_msg = Odometry()
     odom_msg.header.stamp = current_time
     odom_msg.header.frame_id = node.odom_frame
@@ -536,7 +584,6 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw):
     odom_msg.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
     node.odom_pub.publish(odom_msg)
 
-    # --- 2. Publish the Transform (TF) ---
     t_msg = TransformStamped()
     t_msg.header.stamp = current_time
     t_msg.header.frame_id = node.odom_frame      
@@ -547,7 +594,6 @@ def publish_odometry(node, current_time, global_x, global_y, global_yaw):
     t_msg.transform.rotation = odom_msg.pose.pose.orientation
     node.tf_broadcaster.sendTransform(t_msg)
     
-    # --- 3. Append and Publish the Path ---
     if len(node.path_msg.poses) == 0 or math.sqrt((global_x - node.path_msg.poses[-1].pose.position.x)**2 + (global_y - node.path_msg.poses[-1].pose.position.y)**2) > 0.01:
         pose = PoseStamped()
         pose.header.stamp = current_time
@@ -573,7 +619,6 @@ def publish_pf_particles_markers(node, current_time):
     marker.scale.x = 0.03  
     base_color = ColorRGBA(r=1.0, g=0.5, b=0.1, a=0.8)
 
-    # Grab the top 50 particles to draw
     top_particles = sorted(node.pf.particles, key=lambda p: p.weight, reverse=True)[:50]
 
     for particle in top_particles:
