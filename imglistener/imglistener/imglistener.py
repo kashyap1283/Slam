@@ -34,7 +34,7 @@ class FastSlamNode(Node):
             parameters=[
                 ('min_keypoints', 5),
                 ('min_inliers', 6),
-                ('visual_inlier_threshold', 30),
+                ('visual_inlier_threshold', 20),
                 ('camera_cx', 318.525),
                 ('camera_cy', 241.181),
                 ('camera_f', 526.61),
@@ -42,10 +42,11 @@ class FastSlamNode(Node):
                 ('base_frame', 'base_link'),
                 ('camera_frame', 'kinect_depth'),
                 ('max_missed_frames', 3),
-                ('num_particles', 500),
+                ('num_particles', 300),
                 ('max_map_landmarks', 1000),
                 ('min_depth_mm', 50),
-                ('max_depth_mm', 5000)
+                ('max_depth_mm', 5000),
+                ('resample_threshold', 0.45)
             ]
         )
 
@@ -63,6 +64,7 @@ class FastSlamNode(Node):
         self.max_map_landmarks = self.get_parameter('max_map_landmarks').value
         self.min_depth_mm = self.get_parameter('min_depth_mm').value
         self.max_depth_mm = self.get_parameter('max_depth_mm').value
+        self.resample_threshold = self.get_parameter('resample_threshold').value
 
         # --- Subscriptions ---
         self.subscription = self.create_subscription(Image, '/serf01/nav_rgbd_1/rgb/image_raw', self.listener_callback, 10)
@@ -221,14 +223,14 @@ class FastSlamNode(Node):
                 self.prev_points_base = points_cam @ self.kinect_to_base_R.T + self.kinect_to_base_t
             return
 
-        dt = current_time_sec - self.prev_time_sec
+        dt = current_time_sec - self.prev_time_sec 
         self.prev_time_sec = current_time_sec
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         kp, des, points_cam = self.feature_detector(frame, self.depth_image)
 
         if not kp or len(kp) < self.min_keypoints:
-            return
+            return 
 
         if len(points_cam) > 0:
             points_base = points_cam @ self.kinect_to_base_R.T + self.kinect_to_base_t
@@ -240,7 +242,7 @@ class FastSlamNode(Node):
         
         if self.prev_des is not None and des is not None:
             matches = self.bf.match(self.prev_des, des)
-            matches = [m for m in matches if m.distance < 60]
+            matches = [m for m in matches if m.distance < 75]
             matches.sort(key=lambda m: m.distance)
             
             if len(matches) >= self.min_keypoints:
@@ -250,7 +252,8 @@ class FastSlamNode(Node):
         # 1. Evaluate Visual Motion
         vis_d_fwd, vis_d_lat, vis_d_yaw, inlier_count = self._estimate_frame_motion(matched_P_prev, matched_P_curr, particle=None)
 
-        # 2. Evaluate Wheel/IMU Motion (Supporting Omnidirectional Y velocity)
+        
+        # 2. Evaluate Wheel/IMU Motion 
         odom_d_fwd = self.latest_v_x * dt
         odom_d_lat = self.latest_v_y * dt  
         odom_d_yaw = self.latest_w * dt
@@ -278,15 +281,15 @@ class FastSlamNode(Node):
         if moved_enough:
             if perform_visual_update:
                 sigmas = {
-                    'forward': 0.1 * abs(d_fwd) + 0.02,
-                    'lateral': 0.1 * abs(d_lat) + 0.02,
-                    'yaw': 0.1 * abs(d_yaw) + 0.05
+                    'forward': 0.01 * abs(d_fwd) + 0.005,
+                    'lateral': 0.01 * abs(d_lat) + 0.005,
+                    'yaw': 0.01 * abs(d_yaw) + 0.005
                 }
             else:
                 sigmas = {
-                    'forward': 0.05 * abs(d_fwd) + 0.01,
-                    'lateral': 0.02 * abs(d_lat) + 0.01,
-                    'yaw': 0.05 * abs(d_yaw) + 0.02
+                    'forward': 0.005 * abs(d_fwd) + 0.003,
+                    'lateral': 0.005 * abs(d_lat) + 0.003,
+                    'yaw': 0.005 * abs(d_yaw) + 0.001
                 }
         else:
             sigmas = {'forward': 0.0, 'lateral': 0.0, 'yaw': 0.0}
@@ -310,9 +313,14 @@ class FastSlamNode(Node):
         # 5. Normalization
         if perform_visual_update and moved_enough:
             self.pf.normalize_weights()
+            best_particle = self.pf.get_best_particle()
 
-        # 6. Extract Best Particle & Publish
-        best_particle = self.pf.get_best_particle()
+            if self.pf.effective_sample_size() < self.num_particles * self.resample_threshold:
+                self.pf.systematic_resampling()
+                self.get_logger().info("Resampling")
+        
+        else:
+            best_particle = self.pf.get_best_particle()
 
         publish_odometry(self, self.current_time, best_particle.x, best_particle.y, best_particle.yaw)
         publish_pf_particles_markers(self, self.current_time)
@@ -379,7 +387,7 @@ class FastSlamNode(Node):
             vis_des = map_des_np[vis_indices]
             matches = self.bf.match(vis_des, des)
 
-            valid_matches = [m for m in matches if m.distance < 60]
+            valid_matches = [m for m in matches if m.distance < 75]
             valid_matches.sort(key=lambda m: m.distance)
 
             if len(valid_matches) > 0:

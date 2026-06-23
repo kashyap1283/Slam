@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import random
+import copy
 
 class Particle:
     """Represents a single robot hypothesis using pre-allocated flat arrays for extreme performance."""
@@ -18,7 +19,7 @@ class Particle:
         self.y = y
         self.yaw = yaw
         
-        self.max_landmarks = 1000  # Matched to your node's max parameter
+        self.max_landmarks = 1000 
         self.num_landmarks = 0
         
         self.map_pts = np.zeros((self.max_landmarks, 3), dtype=np.float64)
@@ -141,5 +142,30 @@ class PF:
             for p in self.particles:
                 p.weight = reset_w
 
+    def effective_sample_size(self):
+        weight_sq_sum = sum(p.weight * p.weight for p in self.particles)
+        if weight_sq_sum <= 1e-300:
+            return 0.0
+        return 1.0 / weight_sq_sum
+
     def get_best_particle(self):
         return max(self.particles, key=lambda p: p.weight)
+
+    def systematic_resampling(self):
+        N = self.N
+        weights = np.array([p.weight for p in self.particles], dtype=np.float64)
+        weights /= weights.sum()
+
+        C = np.cumsum(weights)
+        u = np.random.uniform(0, 1.0 / N)
+        k = np.arange(1, N + 1)
+        u_k = u + (k - 1) / N
+        indices = np.searchsorted(C, u_k, side='left')
+
+        import copy
+        self.particles = [copy.deepcopy(self.particles[i]) for i in indices]
+
+        uniform_w = 1.0 / N
+        for p in self.particles:
+            p.weight = uniform_w
+
