@@ -42,7 +42,7 @@ class FastSlamNode(Node):
                 ('base_frame', 'base_link'),
                 ('camera_frame', 'kinect_depth'),
                 ('max_missed_frames', 3),
-                ('num_particles', 300),
+                ('num_particles', 400),
                 ('max_map_landmarks', 1000),
                 ('min_depth_mm', 50),
                 ('max_depth_mm', 5000),
@@ -276,20 +276,20 @@ class FastSlamNode(Node):
             perform_visual_update = False
             self.use_camera = False
 
-        moved_enough = (abs(d_fwd) > 0.005 or abs(d_lat) > 0.005 or abs(d_yaw) > 0.01)
+        moved_enough = (abs(d_fwd) > 0.01 or abs(d_lat) > 0.01 or abs(d_yaw) > 0.01)
 
         if moved_enough:
             if perform_visual_update:
                 sigmas = {
-                    'forward': 0.01 * abs(d_fwd) + 0.005,
-                    'lateral': 0.01 * abs(d_lat) + 0.005,
-                    'yaw': 0.01 * abs(d_yaw) + 0.005
+                    'forward': 0.01 * abs(d_fwd) + 0.008,
+                    'lateral': 0.01 * abs(d_lat) + 0.008,
+                    'yaw': 0.01 * abs(d_yaw) + 0.008
                 }
             else:
                 sigmas = {
-                    'forward': 0.005 * abs(d_fwd) + 0.003,
-                    'lateral': 0.005 * abs(d_lat) + 0.003,
-                    'yaw': 0.005 * abs(d_yaw) + 0.001
+                    'forward': 0.005 * abs(d_fwd) + 0.006,
+                    'lateral': 0.005 * abs(d_lat) + 0.006,
+                    'yaw': 0.005 * abs(d_yaw) + 0.003
                 }
         else:
             sigmas = {'forward': 0.0, 'lateral': 0.0, 'yaw': 0.0}
@@ -363,6 +363,7 @@ class FastSlamNode(Node):
             d_yaw = math.atan2(R_2d[1, 0], R_2d[0, 0])
             inlier_count = inlier_count_out
 
+        print("Inliers :-" , inlier_count)
         return d_fwd, d_lat, d_yaw, inlier_count
 
     def _to_particle_local(self, pts, x, y, yaw):
@@ -387,13 +388,14 @@ class FastSlamNode(Node):
             vis_des = map_des_np[vis_indices]
             matches = self.bf.match(vis_des, des)
 
-            valid_matches = [m for m in matches if m.distance < 75]
+            valid_matches = [m for m in matches if m.distance < 60]
             valid_matches.sort(key=lambda m: m.distance)
 
             if len(valid_matches) > 0:
                 map_indices = [vis_indices[m.queryIdx] for m in valid_matches]
                 train_indices = [m.trainIdx for m in valid_matches]
                 match_pairs = list(zip(map_indices, train_indices))
+                
                 cos_yaw, sin_yaw = math.cos(-particle.yaw), math.sin(-particle.yaw)
                 
                 R00, R01, R02 = self.base_to_kinect_R[0, 0], self.base_to_kinect_R[0, 1], self.base_to_kinect_R[0, 2]
@@ -421,10 +423,22 @@ class FastSlamNode(Node):
                     z0, z1 = points_cam[train_idx][0], points_cam[train_idx][2]
                     r00, r01, r10, r11 = self._compute_feature_covariance(cam_x, cam_z, particle.yaw)
 
-                    v0 = z0 - cam_x
-                    v1 = z1 - cam_z 
+                    # --- EKF INTEGRATION ---
+                    z_meas = np.array([z0, z1])
+                    z_pred = np.array([cam_x, cam_z])
+                    R_meas = np.array([[r00, r01], [r10, r11]])
+
+                    # Observation Jacobian H (2x2)
+                    # Partial derivatives of cam_x and cam_z with respect to landmark X and Y
+                    H00 = R00 * cos_yaw + R01 * sin_yaw
+                    H01 = -R00 * sin_yaw + R01 * cos_yaw
+                    H10 = R20 * cos_yaw + R21 * sin_yaw
+                    H11 = -R20 * sin_yaw + R21 * cos_yaw
+                    JH = np.array([[H00, H01], [H10, H11]])
                     
-                    v, S = particle.update_landmark(map_idx, v0, v1, r00, r01, r10, r11, 0.001, 0.001, particle.yaw)
+                    v, S = particle.update_landmark(map_idx, z_meas, z_pred, JH, R_meas)
+                    # -----------------------
+
                     if v is not None:
                         innovations.append(v)
                         s_matrices.append(S)
