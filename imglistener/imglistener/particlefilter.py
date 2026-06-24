@@ -79,7 +79,6 @@ class Particle:
         def state_func(x): return x
         
         # The measurement prediction is pre-calculated in the particle loop
-        # for spatial efficiency, so we just return it.
         def meas_func(x): return z_pred
 
         JF = np.eye(2)               # State Jacobian is Identity
