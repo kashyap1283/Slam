@@ -185,6 +185,4 @@ python -m pstats fastslam.prof_RANSAC2000
 
 ## Known issues / TODOs
 - Resampling too much on straights
-- 
-- Loop closure is not implemented — the filter will drift on long trajectories
-- No relocalization if tracking is lost for many consecutive frames
+- Loop closure is not implemented — the filter will drift on long trajectories.
