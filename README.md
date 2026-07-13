@@ -186,3 +186,11 @@ python -m pstats fastslam.prof_RANSAC2000
 ## Known issues / TODOs
 - Resampling too much on straights
 - Loop closure is not implemented — the filter will drift on long trajectories.
+
+## Acknowledgements
+
+Parts of this repository's documentation and some implementation code (helper
+functions and example snippets) were produced with the assistance of AI tools to
+speed up drafting and refinement. All design decisions, verification, and final
+implementations were carried out by the project team — the AI was used as a
+productivity aid, not a replacement for engineering judgment.
