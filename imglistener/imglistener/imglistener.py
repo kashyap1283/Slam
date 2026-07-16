@@ -44,7 +44,7 @@ class FastSlamNode(Node):
                 ('base_frame', 'base_link'),
                 ('camera_frame', 'kinect_depth'),
                 ('max_missed_frames', 3),
-                ('num_particles', 100),
+                ('num_particles', 400),
                 ('max_map_landmarks', 1000),
                 ('min_depth_mm', 50),
                 ('max_depth_mm', 5000),

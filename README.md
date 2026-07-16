@@ -1,6 +1,6 @@
-# FastSLAM 1.0 — RGB-D + Wheel/IMU Fusion (ROS 2)
+# FastSLAM — RGB-D + Wheel/IMU Fusion (ROS 2)
 
-FastSLAM 1.0 implementation for the `serf01` omnidirectional robot using a Kinect-style
+FastSLAM  implementation for the `serf01` omnidirectional robot using a Kinect-style
 RGB-D camera. Built as part of a robotics project at university.
 
 The idea is to run a particle filter where each particle carries its own EKF landmark map.
@@ -111,7 +111,7 @@ Declared on `fastslam_node`, can be overridden at launch.
 | `num_particles` | 100 | Number of particles in the filter |
 | `max_map_landmarks` | 1000 | Per-particle landmark cap |
 | `min_depth_mm`, `max_depth_mm` | 50, 5000 | Valid depth range for back-projection |
-| `resample_threshold` | 0.45 | Resample when N_eff drops below this fraction of N |
+| `resample_threshold` | 0.50 | Resample when N_eff drops below this fraction of N |
 
 ---
 
@@ -156,30 +156,6 @@ Both wheel odom and IMU yaw are offset-corrected on the first message so they st
 | `driven_dist_m` | Accumulated driven distance — useful as x-axis for error plots |
 | `xy_euclidean_error_m`, `x_error_m`, `y_error_m` | SLAM vs wheel position error |
 | `yaw_error_deg` | SLAM vs IMU yaw error |
-
----
-
-## Performance
-
-Rough per-component timings on commodity hardware:
-
-| Component | Typical time | Note |
-|-----------|-------------|------|
-| ORB detection (2000 features) | 15–25 ms | Main bottleneck — lower `nfeatures` if too slow |
-| BFMatcher | 1–3 ms | Hamming on uint8 is fast |
-| RANSAC + Kabsch | 2–5 ms | Early exit at 90% inlier ratio |
-| Particle filter (100 particles) | 5–15 ms | Pre-allocated flat arrays avoid per-frame allocation |
-| Landmark visibility query | ~1 ms | Vectorized NumPy, spatial cull before projection |
-
-The flat array design (pre-allocated `(1000, 3)` / `(1000, 32)` NumPy arrays per particle)
-avoids dynamic memory allocation inside the inner loop, which made a noticeable difference
-compared to storing landmarks as Python objects.
-
-To look at a profile dump:
-
-```bash
-python -m pstats fastslam.prof_RANSAC2000
-```
 
 ---
 
