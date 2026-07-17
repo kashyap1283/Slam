@@ -165,8 +165,4 @@ Both wheel odom and IMU yaw are offset-corrected on the first message so they st
 
 ## Acknowledgements
 
-Parts of this repository's documentation and some implementation code (helper
-functions and example snippets) were produced with the assistance of AI tools to
-speed up drafting and refinement. All design decisions, verification, and final
-implementations were carried out by the project team — the AI was used as a
-productivity aid, not a replacement for engineering judgment.
+We used AI tools to assist in writing parts of this codebase—specifically helper functions and example snippets—as well as drafting the documentation. While AI helped us write these components, the project team made all core design and architectural decisions. We thoroughly verified, tested, and debugged all AI-assisted code to ensure its accuracy, maintaining full ownership of the final implementation.
